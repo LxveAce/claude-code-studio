@@ -29,7 +29,8 @@ export function TitleBar() {
       alignItems: 'center',
       justifyContent: 'space-between',
       padding: '0 12px',
-      WebkitAppRegion: 'drag' as unknown as string,
+      // @ts-expect-error Electron-specific CSS property
+      WebkitAppRegion: 'drag',
       borderBottom: '1px solid var(--border-color)',
       userSelect: 'none',
     }}>
@@ -46,7 +47,8 @@ export function TitleBar() {
       <div style={{
         display: 'flex',
         gap: 0,
-        WebkitAppRegion: 'no-drag' as unknown as string,
+        // @ts-expect-error Electron-specific CSS property
+        WebkitAppRegion: 'no-drag',
       }}>
         <WindowButton label="–" onClick={() => window.electronAPI.window.minimize()} />
         <WindowButton label="□" onClick={() => window.electronAPI.window.maximize()} />
