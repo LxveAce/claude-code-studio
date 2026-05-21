@@ -8,26 +8,28 @@ interface CommandDef {
 }
 
 const QUICK_COMMANDS: CommandDef[] = [
-  { label: 'Opus', command: '/model opus', description: 'Switch to Claude Opus', category: 'Model' },
-  { label: 'Sonnet', command: '/model sonnet', description: 'Switch to Claude Sonnet', category: 'Model' },
-  { label: 'Haiku', command: '/model haiku', description: 'Switch to Claude Haiku', category: 'Model' },
-  { label: 'Max Effort', command: '/effort max', description: 'Maximum reasoning effort', category: 'Effort' },
-  { label: 'High Effort', command: '/effort high', description: 'High reasoning effort', category: 'Effort' },
-  { label: 'Low Effort', command: '/effort low', description: 'Quick lightweight responses', category: 'Effort' },
-  { label: 'Compact', command: '/compact', description: 'Free up context by summarizing', category: 'Session' },
-  { label: 'Clear', command: '/clear', description: 'Start new conversation', category: 'Session' },
-  { label: 'Resume', command: '/resume', description: 'Resume previous session', category: 'Session' },
-  { label: 'Plan Mode', command: '/plan', description: 'Enter plan mode', category: 'Workflow' },
-  { label: 'Review', command: '/review', description: 'Review pull request', category: 'Workflow' },
-  { label: 'Diff', command: '/diff', description: 'View uncommitted changes', category: 'Workflow' },
-  { label: 'Context', command: '/context', description: 'Visualize context usage', category: 'Info' },
-  { label: 'Usage', command: '/usage', description: 'Show session cost & usage', category: 'Info' },
+  { label: 'Opus', command: '/model opus', description: 'Most capable model', category: 'Model' },
+  { label: 'Sonnet', command: '/model sonnet', description: 'Fast & capable', category: 'Model' },
+  { label: 'Haiku', command: '/model haiku', description: 'Fastest model', category: 'Model' },
+  { label: 'Fast Mode', command: '/fast', description: 'Toggle fast output', category: 'Model' },
+  { label: 'Max', command: '/effort max', description: 'Maximum reasoning', category: 'Effort' },
+  { label: 'High', command: '/effort high', description: 'High reasoning', category: 'Effort' },
+  { label: 'Medium', command: '/effort medium', description: 'Balanced', category: 'Effort' },
+  { label: 'Low', command: '/effort low', description: 'Quick responses', category: 'Effort' },
+  { label: 'Compact', command: '/compact', description: 'Summarize & free context', category: 'Session' },
+  { label: 'Clear', command: '/clear', description: 'New conversation', category: 'Session' },
+  { label: 'Resume', command: '/resume', description: 'Resume previous', category: 'Session' },
+  { label: 'Context', command: '/context', description: 'View usage grid', category: 'Session' },
+  { label: 'Plan', command: '/plan', description: 'Enter plan mode', category: 'Workflow' },
+  { label: 'Review', command: '/review', description: 'Review PR', category: 'Workflow' },
+  { label: 'Diff', command: '/diff', description: 'View changes', category: 'Workflow' },
+  { label: 'Simplify', command: '/simplify', description: 'Code quality check', category: 'Workflow' },
+  { label: 'Usage', command: '/usage', description: 'Session cost & stats', category: 'Info' },
   { label: 'Help', command: '/help', description: 'Show help', category: 'Info' },
-  { label: 'Fast Mode', command: '/fast', description: 'Toggle fast output mode', category: 'Model' },
-  { label: 'Memory', command: '/memory', description: 'Edit CLAUDE.md memory files', category: 'Config' },
-  { label: 'Permissions', command: '/permissions', description: 'Manage tool permissions', category: 'Config' },
-  { label: 'Init', command: '/init', description: 'Initialize project with CLAUDE.md', category: 'Config' },
-  { label: 'Debug', command: '/debug', description: 'Enable debug logging', category: 'Config' },
+  { label: 'Doctor', command: '/doctor', description: 'Diagnose install', category: 'Info' },
+  { label: 'Permissions', command: '/permissions', description: 'Manage tools', category: 'Config' },
+  { label: 'Memory', command: '/memory', description: 'Edit memory files', category: 'Config' },
+  { label: 'Init', command: '/init', description: 'Initialize project', category: 'Config' },
 ];
 
 const CATEGORIES = ['Model', 'Effort', 'Session', 'Workflow', 'Info', 'Config'];
@@ -40,48 +42,31 @@ export function QuickCommands({ onSendCommand }: QuickCommandsProps) {
   const [activeCategory, setActiveCategory] = useState('Model');
   const [hoveredCmd, setHoveredCmd] = useState<string | null>(null);
 
-  const filteredCommands = QUICK_COMMANDS.filter(
-    (c) => c.category === activeCategory
-  );
+  const filtered = QUICK_COMMANDS.filter((c) => c.category === activeCategory);
 
   return (
     <div>
-      <h3
-        style={{
-          marginBottom: 12,
-          color: 'var(--text-primary)',
-          fontSize: 14,
-          fontWeight: 600,
-        }}
-      >
-        Quick Commands
-      </h3>
-
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 4,
-          marginBottom: 12,
-        }}
-      >
+      {/* Category Pills */}
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 4,
+        marginBottom: 12,
+      }}>
         {CATEGORIES.map((cat) => (
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
             style={{
-              padding: '4px 10px',
-              borderRadius: 4,
-              border: 'none',
+              padding: '5px 12px',
+              borderRadius: 'var(--radius-xl)',
+              border: activeCategory === cat ? 'none' : '1px solid var(--border)',
               fontSize: 11,
+              fontWeight: 500,
               cursor: 'pointer',
-              backgroundColor:
-                activeCategory === cat
-                  ? 'var(--accent-purple)'
-                  : 'var(--bg-primary)',
-              color:
-                activeCategory === cat ? '#fff' : 'var(--text-secondary)',
-              fontWeight: activeCategory === cat ? 600 : 400,
+              background: activeCategory === cat ? 'var(--accent-gradient)' : 'transparent',
+              color: activeCategory === cat ? '#fff' : 'var(--text-secondary)',
+              transition: 'all var(--transition-fast)',
             }}
           >
             {cat}
@@ -89,61 +74,59 @@ export function QuickCommands({ onSendCommand }: QuickCommandsProps) {
         ))}
       </div>
 
+      {/* Commands List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {filteredCommands.map((cmd) => (
-          <button
-            key={cmd.command}
-            onClick={() => onSendCommand(cmd.command)}
-            onMouseEnter={() => setHoveredCmd(cmd.command)}
-            onMouseLeave={() => setHoveredCmd(null)}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '8px 10px',
-              borderRadius: 6,
-              border: 'none',
-              cursor: 'pointer',
-              backgroundColor:
-                hoveredCmd === cmd.command
-                  ? 'rgba(124,58,237,0.15)'
-                  : 'var(--bg-primary)',
-              textAlign: 'left',
-              transition: 'background-color 0.15s',
-            }}
-          >
-            <div>
-              <div
-                style={{
+        {filtered.map((cmd) => {
+          const isHovered = hoveredCmd === cmd.command;
+          return (
+            <button
+              key={cmd.command}
+              onClick={() => onSendCommand(cmd.command)}
+              onMouseEnter={() => setHoveredCmd(cmd.command)}
+              onMouseLeave={() => setHoveredCmd(null)}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 12px',
+                borderRadius: 'var(--radius-md)',
+                border: `1px solid ${isHovered ? 'var(--border-active)' : 'var(--border)'}`,
+                cursor: 'pointer',
+                background: isHovered ? 'var(--accent-gradient-soft)' : 'var(--bg-primary)',
+                textAlign: 'left',
+                transition: 'all var(--transition-fast)',
+                transform: isHovered ? 'translateX(2px)' : 'none',
+              }}
+            >
+              <div>
+                <div style={{
                   fontSize: 13,
                   fontWeight: 600,
                   color: 'var(--text-primary)',
-                }}
-              >
-                {cmd.label}
-              </div>
-              <div
-                style={{
+                }}>
+                  {cmd.label}
+                </div>
+                <div style={{
                   fontSize: 11,
                   color: 'var(--text-muted)',
-                  marginTop: 2,
-                }}
-              >
-                {cmd.description}
+                  marginTop: 1,
+                }}>
+                  {cmd.description}
+                </div>
               </div>
-            </div>
-            <span
-              style={{
+              <span style={{
                 fontSize: 11,
-                color: 'var(--accent-purple-light)',
+                color: 'var(--accent-light)',
                 fontFamily: 'monospace',
                 whiteSpace: 'nowrap',
-              }}
-            >
-              {cmd.command}
-            </span>
-          </button>
-        ))}
+                opacity: isHovered ? 1 : 0.6,
+                transition: 'opacity var(--transition-fast)',
+              }}>
+                {cmd.command}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

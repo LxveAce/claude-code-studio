@@ -7,17 +7,34 @@ interface StatusBarProps {
 export function StatusBar({ pid }: StatusBarProps) {
   return (
     <div style={{
-      height: 24,
-      backgroundColor: 'var(--accent-purple)',
+      height: 28,
+      background: 'var(--bg-secondary)',
+      borderTop: '1px solid var(--border)',
       display: 'flex',
       alignItems: 'center',
-      padding: '0 12px',
-      fontSize: 12,
-      color: '#fff',
-      gap: 16,
+      justifyContent: 'space-between',
+      padding: '0 16px',
+      fontSize: 11,
+      color: 'var(--text-muted)',
+      userSelect: 'none',
     }}>
-      <span>{pid > 0 ? `Claude PID: ${pid}` : 'Claude: starting...'}</span>
-      <span style={{ opacity: 0.7 }}>|</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: pid > 0 ? 'var(--success)' : 'var(--danger)',
+            boxShadow: pid > 0 ? '0 0 6px rgba(34,197,94,0.4)' : '0 0 6px rgba(239,68,68,0.4)',
+          }} />
+          <span>{pid > 0 ? 'Connected' : 'Disconnected'}</span>
+        </div>
+        {pid > 0 && (
+          <span style={{ color: 'var(--text-muted)' }}>
+            PID {pid}
+          </span>
+        )}
+      </div>
       <span>Claude Code Studio v1.0.0</span>
     </div>
   );
