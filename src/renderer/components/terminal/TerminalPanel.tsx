@@ -86,9 +86,17 @@ export function TerminalPanel({ onPidChange, sendRef }: TerminalPanelProps) {
       onPidChange(0);
     });
 
+    let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
     const handleResize = () => {
-      fit.fit();
-      window.electronAPI.terminal.resize(term.cols, term.rows);
+      if (resizeTimeout) clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        try {
+          fit.fit();
+          window.electronAPI.terminal.resize(term.cols, term.rows);
+        } catch {
+          // terminal may be disposed
+        }
+      }, 50);
     };
 
     const resizeObserver = new ResizeObserver(handleResize);
@@ -97,7 +105,7 @@ export function TerminalPanel({ onPidChange, sendRef }: TerminalPanelProps) {
     setTimeout(() => {
       fit.fit();
       window.electronAPI.terminal.resize(term.cols, term.rows);
-    }, 100);
+    }, 150);
 
     return () => {
       resizeObserver.disconnect();
