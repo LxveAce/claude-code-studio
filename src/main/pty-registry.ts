@@ -13,8 +13,9 @@ import { PtyManager } from './pty-manager';
  */
 export class PtyRegistry extends EventEmitter {
   private panes = new Map<string, PtyManager>();
-  /** Tracks per-pane listeners so dispose is symmetric (no leaks on close). */
-  private listeners = new Map<
+  /** Tracks per-pane listeners so dispose is symmetric (no leaks on close).
+   *  Renamed from `listeners` to avoid clobbering the EventEmitter method. */
+  private paneListeners = new Map<
     string,
     {
       onData: (data: string) => void;
@@ -105,7 +106,7 @@ export class PtyRegistry extends EventEmitter {
     mgr.on('ready', onReady);
 
     this.panes.set(paneId, mgr);
-    this.listeners.set(paneId, { onData, onExit, onReady });
+    this.paneListeners.set(paneId, { onData, onExit, onReady });
 
     try {
       mgr.spawn(cwd);
@@ -152,13 +153,13 @@ export class PtyRegistry extends EventEmitter {
    */
   private dispose(paneId: string): void {
     const mgr = this.panes.get(paneId);
-    const ls = this.listeners.get(paneId);
+    const ls = this.paneListeners.get(paneId);
     if (mgr && ls) {
       mgr.off('data', ls.onData);
       mgr.off('exit', ls.onExit);
       mgr.off('ready', ls.onReady);
     }
     this.panes.delete(paneId);
-    this.listeners.delete(paneId);
+    this.paneListeners.delete(paneId);
   }
 }

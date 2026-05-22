@@ -368,6 +368,7 @@ export type SessionPanelId =
   | 'commands'
   | 'resources'
   | 'github'
+  | 'cost'
   | 'compact'
   | 'lmm'
   | 'sync'
