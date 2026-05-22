@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TitleBar } from './components/layout/TitleBar';
 import { Sidebar } from './components/layout/Sidebar';
 import { StatusBar } from './components/layout/StatusBar';
@@ -11,6 +11,7 @@ import { GitHubPanel } from './components/github/GitHubPanel';
 import { LMMPanel } from './components/lmm/LMMPanel';
 import { AuthPanel } from './components/auth/AuthPanel';
 import { SyncPanel } from './components/sync/SyncPanel';
+import { CommandPalette } from './components/palette/CommandPalette';
 
 export type SidebarPanel =
   | 'terminal'
@@ -26,6 +27,7 @@ export type SidebarPanel =
 export function App() {
   const [activePanel, setActivePanel] = useState<SidebarPanel>('terminal');
   const [claudePid, setClaudePid] = useState<number>(0);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const terminalSendRef = useRef<((data: string) => void) | null>(null);
 
   const handleSendCommand = useCallback((command: string) => {
@@ -33,6 +35,36 @@ export function App() {
       terminalSendRef.current(command + '\r');
     }
     setActivePanel('terminal');
+  }, []);
+
+  const handleSendToTerminal = useCallback((text: string, submit: boolean) => {
+    if (!terminalSendRef.current) return;
+    // Strip carriage returns to defuse the "snippet body with \r auto-submits"
+    // footgun. Embedded \n becomes a visible newline; user explicitly hits
+    // Enter to submit. Only the explicit `submit` flag appends \r.
+    const sanitized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    terminalSendRef.current(submit ? sanitized + '\r' : sanitized);
+  }, []);
+
+  const handleRestartTerminal = useCallback(() => {
+    // Signal main so it can suppress the imminent "Claude exited" notification
+    // for this user-initiated restart. Best-effort — IPC may not exist yet.
+    void window.electronAPI.terminal.restart();
+  }, []);
+
+  // Global Ctrl+Shift+P / Cmd+Shift+P to open the palette.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+        // Don't hijack the keystroke if the user is mid-paste in xterm — xterm
+        // doesn't see modified-P as input anyway, so this is safe globally.
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   const showRightPanel = activePanel !== 'terminal';
@@ -87,6 +119,14 @@ export function App() {
       </div>
 
       <StatusBar pid={claudePid} />
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onSwitchPanel={setActivePanel}
+        onSendToTerminal={handleSendToTerminal}
+        onRestartTerminal={handleRestartTerminal}
+      />
     </div>
   );
 }

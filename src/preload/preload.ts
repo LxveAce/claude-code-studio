@@ -105,6 +105,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke(IPC.SYNC_VERIFY_REPO, owner, repo),
     deleteRemote: (name: string) => ipcRenderer.invoke(IPC.SYNC_DELETE_REMOTE, name),
   },
+  snippets: {
+    list: () => ipcRenderer.invoke(IPC.SNIPPET_LIST),
+    create: (input: { name: string; body: string }) =>
+      ipcRenderer.invoke(IPC.SNIPPET_CREATE, input),
+    update: (id: string, patch: { name?: string; body?: string }) =>
+      ipcRenderer.invoke(IPC.SNIPPET_UPDATE, id, patch),
+    delete: (id: string) => ipcRenderer.invoke(IPC.SNIPPET_DELETE, id),
+  },
+  notifications: {
+    supported: () => ipcRenderer.invoke(IPC.NOTIF_SUPPORTED),
+    getSettings: () => ipcRenderer.invoke(IPC.NOTIF_GET_SETTINGS),
+    setSettings: (partial: unknown) => ipcRenderer.invoke(IPC.NOTIF_SET_SETTINGS, partial),
+    test: () => ipcRenderer.invoke(IPC.NOTIF_TEST),
+  },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     maximize: () => ipcRenderer.send('window:maximize'),

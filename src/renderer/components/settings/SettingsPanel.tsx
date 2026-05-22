@@ -1,86 +1,6 @@
 import React, { useState, useEffect } from 'react';
-
-interface ThemePreset {
-  name: string;
-  accent: string;
-  accentLight: string;
-  gradient: string;
-  gradientSoft: string;
-  borderActive: string;
-  glow: string;
-}
-
-const THEME_PRESETS: ThemePreset[] = [
-  {
-    name: 'Purple',
-    accent: '#7c3aed',
-    accentLight: '#a78bfa',
-    gradient: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 50%, #5b21b6 100%)',
-    gradientSoft: 'linear-gradient(135deg, rgba(124,58,237,0.2) 0%, rgba(109,40,217,0.1) 100%)',
-    borderActive: 'rgba(124, 58, 237, 0.3)',
-    glow: '0 0 20px rgba(124, 58, 237, 0.15)',
-  },
-  {
-    name: 'Blue',
-    accent: '#3b82f6',
-    accentLight: '#93c5fd',
-    gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)',
-    gradientSoft: 'linear-gradient(135deg, rgba(59,130,246,0.2) 0%, rgba(37,99,235,0.1) 100%)',
-    borderActive: 'rgba(59, 130, 246, 0.3)',
-    glow: '0 0 20px rgba(59, 130, 246, 0.15)',
-  },
-  {
-    name: 'Emerald',
-    accent: '#10b981',
-    accentLight: '#6ee7b7',
-    gradient: 'linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%)',
-    gradientSoft: 'linear-gradient(135deg, rgba(16,185,129,0.2) 0%, rgba(5,150,105,0.1) 100%)',
-    borderActive: 'rgba(16, 185, 129, 0.3)',
-    glow: '0 0 20px rgba(16, 185, 129, 0.15)',
-  },
-  {
-    name: 'Rose',
-    accent: '#f43f5e',
-    accentLight: '#fda4af',
-    gradient: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 50%, #be123c 100%)',
-    gradientSoft: 'linear-gradient(135deg, rgba(244,63,94,0.2) 0%, rgba(225,29,72,0.1) 100%)',
-    borderActive: 'rgba(244, 63, 94, 0.3)',
-    glow: '0 0 20px rgba(244, 63, 94, 0.15)',
-  },
-  {
-    name: 'Amber',
-    accent: '#f59e0b',
-    accentLight: '#fcd34d',
-    gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)',
-    gradientSoft: 'linear-gradient(135deg, rgba(245,158,11,0.2) 0%, rgba(217,119,6,0.1) 100%)',
-    borderActive: 'rgba(245, 158, 11, 0.3)',
-    glow: '0 0 20px rgba(245, 158, 11, 0.15)',
-  },
-  {
-    name: 'Cyan',
-    accent: '#06b6d4',
-    accentLight: '#67e8f9',
-    gradient: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #0e7490 100%)',
-    gradientSoft: 'linear-gradient(135deg, rgba(6,182,212,0.2) 0%, rgba(8,145,178,0.1) 100%)',
-    borderActive: 'rgba(6, 182, 212, 0.3)',
-    glow: '0 0 20px rgba(6, 182, 212, 0.15)',
-  },
-];
-
-function applyTheme(preset: ThemePreset) {
-  const root = document.documentElement;
-  root.style.setProperty('--accent', preset.accent);
-  root.style.setProperty('--accent-light', preset.accentLight);
-  root.style.setProperty('--accent-gradient', preset.gradient);
-  root.style.setProperty('--accent-gradient-soft', preset.gradientSoft);
-  root.style.setProperty('--border-active', preset.borderActive);
-  root.style.setProperty('--shadow-glow', preset.glow);
-  root.style.setProperty('--accent-dim', preset.gradientSoft.includes('rgba')
-    ? `rgba(${hexToRgb(preset.accent)}, 0.15)`
-    : preset.gradientSoft);
-  root.style.setProperty('--gauge-purple', preset.accent);
-  root.style.setProperty('--bg-hover', `rgba(${hexToRgb(preset.accent)}, 0.08)`);
-}
+import { THEME_PRESETS, applyTheme, findThemePreset, type ThemePreset } from '../../theme-presets';
+import type { NotificationSettings } from '../../../shared/types';
 
 function hexToRgb(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -92,22 +12,30 @@ function hexToRgb(hex: string): string {
 export function SettingsPanel() {
   const [activeTheme, setActiveTheme] = useState('Purple');
   const [hoveredTheme, setHoveredTheme] = useState<string | null>(null);
+  const [notif, setNotif] = useState<NotificationSettings | null>(null);
+  const [notifSupported, setNotifSupported] = useState(true);
 
   useEffect(() => {
     const saved = localStorage.getItem('claude-studio-theme');
-    if (saved) {
-      const preset = THEME_PRESETS.find((p) => p.name === saved);
-      if (preset) {
-        setActiveTheme(saved);
-        applyTheme(preset);
-      }
+    const preset = findThemePreset(saved);
+    if (preset) {
+      setActiveTheme(preset.name);
+      applyTheme(preset);
     }
+    void (async () => {
+      setNotifSupported(await window.electronAPI.notifications.supported());
+      setNotif(await window.electronAPI.notifications.getSettings());
+    })();
   }, []);
 
   const handleThemeChange = (preset: ThemePreset) => {
     setActiveTheme(preset.name);
     applyTheme(preset);
-    localStorage.setItem('claude-studio-theme', preset.name);
+  };
+
+  const updateNotif = async (patch: Partial<NotificationSettings>) => {
+    const next = await window.electronAPI.notifications.setSettings(patch);
+    setNotif(next);
   };
 
   return (
@@ -216,6 +144,71 @@ export function SettingsPanel() {
         <SettingRow label="Cursor Blink" value="On" />
       </div>
 
+      {/* Notifications */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: 'var(--text-primary)',
+          marginBottom: 10,
+        }}>
+          Notifications
+        </div>
+        {!notifSupported ? (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            Desktop notifications are not supported on this OS.
+          </div>
+        ) : notif ? (
+          <>
+            <ToggleRow
+              label="Enabled"
+              value={notif.enabled}
+              onChange={(v) => void updateNotif({ enabled: v })}
+            />
+            <ToggleRow
+              label="On Claude exit"
+              value={notif.notifyOnPtyExit}
+              disabled={!notif.enabled}
+              onChange={(v) => void updateNotif({ notifyOnPtyExit: v })}
+            />
+            <ToggleRow
+              label="On vault sync error"
+              value={notif.notifyOnSyncError}
+              disabled={!notif.enabled}
+              onChange={(v) => void updateNotif({ notifyOnSyncError: v })}
+            />
+            <button
+              onClick={() => void window.electronAPI.notifications.test()}
+              style={{
+                marginTop: 6,
+                padding: '5px 10px',
+                fontSize: 11,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              Send test notification
+            </button>
+          </>
+        ) : null}
+      </div>
+
+      {/* Shortcuts */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: 'var(--text-primary)',
+          marginBottom: 10,
+        }}>
+          Shortcuts
+        </div>
+        <SettingRow label="Command palette" value="Ctrl+Shift+P" />
+      </div>
+
       {/* About */}
       <div style={{
         padding: '14px 16px',
@@ -252,6 +245,55 @@ function SettingRow({ label, value }: { label: string; value: string }) {
     }}>
       <span style={{ color: 'var(--text-muted)' }}>{label}</span>
       <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{value}</span>
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '5px 0',
+      fontSize: 12,
+      opacity: disabled ? 0.5 : 1,
+    }}>
+      <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+      <button
+        onClick={() => !disabled && onChange(!value)}
+        disabled={disabled}
+        style={{
+          width: 32,
+          height: 18,
+          borderRadius: 9,
+          border: 'none',
+          padding: 1.5,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          background: value ? 'var(--accent)' : 'var(--gauge-grey)',
+          transition: 'background var(--transition-base)',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{
+          width: 15,
+          height: 15,
+          borderRadius: '50%',
+          background: '#fff',
+          transition: 'transform var(--transition-base)',
+          transform: `translateX(${value ? 14 : 0}px)`,
+        }} />
+      </button>
     </div>
   );
 }

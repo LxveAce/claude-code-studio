@@ -51,6 +51,16 @@ export const IPC = {
   SYNC_VERIFY_REPO: 'sync:verify-repo',
   SYNC_DELETE_REMOTE: 'sync:delete-remote',
 
+  SNIPPET_LIST: 'snippet:list',
+  SNIPPET_CREATE: 'snippet:create',
+  SNIPPET_UPDATE: 'snippet:update',
+  SNIPPET_DELETE: 'snippet:delete',
+
+  NOTIF_GET_SETTINGS: 'notif:get-settings',
+  NOTIF_SET_SETTINGS: 'notif:set-settings',
+  NOTIF_SUPPORTED: 'notif:supported',
+  NOTIF_TEST: 'notif:test',
+
   LMM_GET_SETTINGS: 'lmm:get-settings',
   LMM_SET_SETTINGS: 'lmm:set-settings',
   LMM_LIST_CYCLES: 'lmm:list-cycles',

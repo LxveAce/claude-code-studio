@@ -8,6 +8,8 @@ import { GitHubService } from './github-service';
 import { LMMService } from './lmm-service';
 import { AuthService } from './auth-service';
 import { CloudSyncService } from './cloud-sync';
+import { SnippetsService } from './snippets-service';
+import { NotificationsService } from './notifications-service';
 import { IPC } from '../shared/ipc-channels';
 
 if (require('electron-squirrel-startup')) {
@@ -26,6 +28,9 @@ let githubService: GitHubService | null = null;
 let lmmService: LMMService | null = null;
 let authService: AuthService | null = null;
 let cloudSyncService: CloudSyncService | null = null;
+let snippetsService: SnippetsService | null = null;
+let notificationsService: NotificationsService | null = null;
+let suppressNextPtyExitNotification = false;
 
 function getGitHub(): GitHubService {
   if (!githubService) githubService = new GitHubService();
@@ -43,8 +48,26 @@ function getAuth(): AuthService {
 }
 
 function getCloudSync(): CloudSyncService {
-  if (!cloudSyncService) cloudSyncService = new CloudSyncService(getGitHub());
+  if (!cloudSyncService) {
+    cloudSyncService = new CloudSyncService(getGitHub(), (msg) => {
+      try {
+        getNotifications().notifySyncError(msg);
+      } catch {
+        // ignore
+      }
+    });
+  }
   return cloudSyncService;
+}
+
+function getSnippets(): SnippetsService {
+  if (!snippetsService) snippetsService = new SnippetsService();
+  return snippetsService;
+}
+
+function getNotifications(): NotificationsService {
+  if (!notificationsService) notificationsService = new NotificationsService();
+  return notificationsService;
 }
 
 const createWindow = () => {
@@ -99,6 +122,15 @@ function setupTerminal() {
 
   ptyManager.on('exit', (code: number) => {
     safeSend(IPC.TERMINAL_EXIT, code);
+    if (suppressNextPtyExitNotification) {
+      suppressNextPtyExitNotification = false;
+      return;
+    }
+    try {
+      getNotifications().notifyPtyExit(code);
+    } catch {
+      // notifications must never block PTY teardown
+    }
   });
 
   ptyManager.on('ready', (pid: number) => {
@@ -115,6 +147,7 @@ function setupTerminal() {
   });
 
   ipcMain.on(IPC.TERMINAL_RESTART, () => {
+    suppressNextPtyExitNotification = true;
     ptyManager.kill();
     ptyManager.spawn();
   });
@@ -243,6 +276,24 @@ function setupCloudSync() {
   );
 }
 
+function setupSnippets() {
+  ipcMain.handle(IPC.SNIPPET_LIST, () => getSnippets().list());
+  ipcMain.handle(IPC.SNIPPET_CREATE, (_event, input) => getSnippets().create(input));
+  ipcMain.handle(IPC.SNIPPET_UPDATE, (_event, id: string, patch) =>
+    getSnippets().update(id, patch)
+  );
+  ipcMain.handle(IPC.SNIPPET_DELETE, (_event, id: string) => getSnippets().delete(id));
+}
+
+function setupNotifications() {
+  ipcMain.handle(IPC.NOTIF_SUPPORTED, () => getNotifications().isSupported());
+  ipcMain.handle(IPC.NOTIF_GET_SETTINGS, () => getNotifications().getSettings());
+  ipcMain.handle(IPC.NOTIF_SET_SETTINGS, (_event, partial) =>
+    getNotifications().setSettings(partial)
+  );
+  ipcMain.handle(IPC.NOTIF_TEST, () => getNotifications().fireTest());
+}
+
 function setupLMM() {
   ipcMain.handle(IPC.LMM_GET_SETTINGS, () => getLMM().getSettings());
   ipcMain.handle(IPC.LMM_SET_SETTINGS, (_event, partial) =>
@@ -313,6 +364,8 @@ app.whenReady().then(() => {
   setupLMM();
   setupAuth();
   setupCloudSync();
+  setupSnippets();
+  setupNotifications();
   setupWindowControls();
 
   app.on('activate', () => {

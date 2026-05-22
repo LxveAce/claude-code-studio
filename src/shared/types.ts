@@ -145,6 +145,20 @@ export interface LMMCycle extends LMMCycleSummary {
   };
 }
 
+export interface Snippet {
+  id: string;
+  name: string;
+  body: string;
+  createdAt: string;
+  modifiedAt: string;
+}
+
+export interface NotificationSettings {
+  enabled: boolean;
+  notifyOnPtyExit: boolean;
+  notifyOnSyncError: boolean;
+}
+
 export interface SyncSettings {
   enabled: boolean;
   owner: string | null;

@@ -54,7 +54,10 @@ export class CloudSyncService {
   private pendingCount = 0;
   private failures = new Map<string, FailRecord>();
 
-  constructor(private githubService: GitHubService) {
+  constructor(
+    private githubService: GitHubService,
+    private onSyncError: (message: string) => void = () => {}
+  ) {
     const userData = app.getPath('userData');
     this.settingsPath = path.join(userData, SETTINGS_FILE);
     this.pushedPath = path.join(userData, PUSHED_INDEX_FILE);
@@ -355,6 +358,13 @@ export class CloudSyncService {
       this.lastError = e instanceof Error ? e.message : String(e);
     } finally {
       this.syncing = false;
+    }
+    if (this.lastError) {
+      try {
+        this.onSyncError(this.lastError);
+      } catch {
+        // notification callback must never break sync
+      }
     }
     return this.getStatus();
   }

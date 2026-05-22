@@ -121,6 +121,24 @@ interface Window {
       deleteCycle: (id: string) => Promise<boolean>;
       pickJournalDir: () => Promise<import('./shared/types').LMMSettings | null>;
     };
+    snippets: {
+      list: () => Promise<import('./shared/types').Snippet[]>;
+      create: (input: { name: string; body: string }) =>
+        Promise<import('./shared/types').Snippet>;
+      update: (
+        id: string,
+        patch: { name?: string; body?: string }
+      ) => Promise<import('./shared/types').Snippet>;
+      delete: (id: string) => Promise<boolean>;
+    };
+    notifications: {
+      supported: () => Promise<boolean>;
+      getSettings: () => Promise<import('./shared/types').NotificationSettings>;
+      setSettings: (
+        partial: Partial<import('./shared/types').NotificationSettings>
+      ) => Promise<import('./shared/types').NotificationSettings>;
+      test: () => Promise<boolean>;
+    };
     sync: {
       getSettings: () => Promise<import('./shared/types').SyncSettings>;
       setSettings: (
