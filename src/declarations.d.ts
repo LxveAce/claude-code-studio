@@ -121,6 +121,24 @@ interface Window {
       deleteCycle: (id: string) => Promise<boolean>;
       pickJournalDir: () => Promise<import('./shared/types').LMMSettings | null>;
     };
+    auth: {
+      state: () => Promise<import('./shared/types').AuthState>;
+      getBackend: () => Promise<import('./shared/types').AuthBackend>;
+      setBackend: (
+        next: Partial<import('./shared/types').AuthBackend>
+      ) => Promise<import('./shared/types').AuthBackend>;
+      register: (
+        creds: import('./shared/types').AuthCredentials
+      ) => Promise<import('./shared/types').AuthState>;
+      login: (
+        creds: import('./shared/types').AuthCredentials
+      ) => Promise<import('./shared/types').AuthState>;
+      logout: () => Promise<import('./shared/types').AuthState>;
+      pullSettings: () => Promise<import('./shared/types').SyncedSettings | null>;
+      pushSettings: (
+        settings: import('./shared/types').SyncedSettings
+      ) => Promise<import('./shared/types').SyncedSettings>;
+    };
     window: {
       minimize: () => void;
       maximize: () => void;

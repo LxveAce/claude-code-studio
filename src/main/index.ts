@@ -6,6 +6,7 @@ import { CompactController } from './compact-controller';
 import { GitService } from './git-service';
 import { GitHubService } from './github-service';
 import { LMMService } from './lmm-service';
+import { AuthService } from './auth-service';
 import { IPC } from '../shared/ipc-channels';
 
 if (require('electron-squirrel-startup')) {
@@ -22,6 +23,7 @@ const compactController = new CompactController();
 const gitService = new GitService();
 let githubService: GitHubService | null = null;
 let lmmService: LMMService | null = null;
+let authService: AuthService | null = null;
 
 function getGitHub(): GitHubService {
   if (!githubService) githubService = new GitHubService();
@@ -31,6 +33,11 @@ function getGitHub(): GitHubService {
 function getLMM(): LMMService {
   if (!lmmService) lmmService = new LMMService();
   return lmmService;
+}
+
+function getAuth(): AuthService {
+  if (!authService) authService = new AuthService();
+  return authService;
 }
 
 const createWindow = () => {
@@ -193,6 +200,19 @@ function setupGitHub() {
   });
 }
 
+function setupAuth() {
+  ipcMain.handle(IPC.AUTH_STATE, () => getAuth().getState());
+  ipcMain.handle(IPC.AUTH_GET_BACKEND, () => getAuth().getBackend());
+  ipcMain.handle(IPC.AUTH_SET_BACKEND, (_event, next) => getAuth().setBackend(next));
+  ipcMain.handle(IPC.AUTH_REGISTER, (_event, creds) => getAuth().register(creds));
+  ipcMain.handle(IPC.AUTH_LOGIN, (_event, creds) => getAuth().login(creds));
+  ipcMain.handle(IPC.AUTH_LOGOUT, () => getAuth().logout());
+  ipcMain.handle(IPC.AUTH_PULL_SETTINGS, () => getAuth().pullSettings());
+  ipcMain.handle(IPC.AUTH_PUSH_SETTINGS, (_event, settings) =>
+    getAuth().pushSettings(settings)
+  );
+}
+
 function setupLMM() {
   ipcMain.handle(IPC.LMM_GET_SETTINGS, () => getLMM().getSettings());
   ipcMain.handle(IPC.LMM_SET_SETTINGS, (_event, partial) =>
@@ -261,6 +281,7 @@ app.whenReady().then(() => {
   setupGit();
   setupGitHub();
   setupLMM();
+  setupAuth();
   setupWindowControls();
 
   app.on('activate', () => {

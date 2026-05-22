@@ -82,6 +82,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteCycle: (id: string) => ipcRenderer.invoke(IPC.LMM_DELETE_CYCLE, id),
     pickJournalDir: () => ipcRenderer.invoke(IPC.LMM_PICK_JOURNAL_DIR),
   },
+  auth: {
+    state: () => ipcRenderer.invoke(IPC.AUTH_STATE),
+    getBackend: () => ipcRenderer.invoke(IPC.AUTH_GET_BACKEND),
+    setBackend: (next: unknown) => ipcRenderer.invoke(IPC.AUTH_SET_BACKEND, next),
+    register: (creds: unknown) => ipcRenderer.invoke(IPC.AUTH_REGISTER, creds),
+    login: (creds: unknown) => ipcRenderer.invoke(IPC.AUTH_LOGIN, creds),
+    logout: () => ipcRenderer.invoke(IPC.AUTH_LOGOUT),
+    pullSettings: () => ipcRenderer.invoke(IPC.AUTH_PULL_SETTINGS),
+    pushSettings: (settings: unknown) => ipcRenderer.invoke(IPC.AUTH_PUSH_SETTINGS, settings),
+  },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     maximize: () => ipcRenderer.send('window:maximize'),

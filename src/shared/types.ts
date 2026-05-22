@@ -145,6 +145,49 @@ export interface LMMCycle extends LMMCycleSummary {
   };
 }
 
+export type AuthBackendMode = 'local-stub' | 'http';
+
+export interface AuthBackend {
+  mode: AuthBackendMode;
+  baseUrl: string | null;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  createdAt: string;
+}
+
+export interface AuthSession {
+  user: AuthUser;
+  issuedAt: string;
+  expiresAt: string | null;
+}
+
+export interface AuthState {
+  signedIn: boolean;
+  session: AuthSession | null;
+  backend: AuthBackend;
+  encryptionAvailable: boolean;
+}
+
+export interface SyncedSettings {
+  theme: string | null;
+  lmm: {
+    enabled: boolean;
+    variant: LMMVariant;
+  } | null;
+  // GitHub PAT is INTENTIONALLY excluded — encryption key is device-local
+  // and the token loses its security properties if synced.
+  updatedAt: string | null;
+}
+
+export interface AuthCredentials {
+  email: string;
+  password: string;
+  allowPlaintextToken?: boolean;
+}
+
 // The full ElectronAPI shape lives in src/declarations.d.ts as an ambient
 // Window typing. Don't redeclare it here — keep this file for serializable
 // IPC payload types only.

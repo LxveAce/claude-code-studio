@@ -35,6 +35,10 @@ export const IPC = {
   AUTH_REGISTER: 'auth:register',
   AUTH_LOGOUT: 'auth:logout',
   AUTH_STATE: 'auth:state',
+  AUTH_GET_BACKEND: 'auth:get-backend',
+  AUTH_SET_BACKEND: 'auth:set-backend',
+  AUTH_PULL_SETTINGS: 'auth:pull-settings',
+  AUTH_PUSH_SETTINGS: 'auth:push-settings',
 
   SYNC_PUSH: 'sync:push',
   SYNC_PULL: 'sync:pull',
