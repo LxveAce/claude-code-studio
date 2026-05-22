@@ -157,6 +157,51 @@ export interface NotificationSettings {
   enabled: boolean;
   notifyOnPtyExit: boolean;
   notifyOnSyncError: boolean;
+  notifyOnCostBudget: boolean;
+}
+
+export type CostModel = 'opus' | 'sonnet' | 'haiku';
+
+export interface CostRate {
+  /** USD per 1M input tokens. */
+  inputPerMillion: number;
+  /** USD per 1M output tokens. */
+  outputPerMillion: number;
+}
+
+export type CostRateTable = Record<CostModel, CostRate>;
+
+export interface CostDayTotal {
+  /** YYYY-MM-DD in local time. */
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  estCostUSD: number;
+  sessionCount: number;
+}
+
+export interface CostSettings {
+  /** USD per day. 0 = no budget. */
+  dailyBudgetUSD: number;
+  /** Which model the rate-table uses for cost estimates. */
+  model: CostModel;
+}
+
+export interface CostStatus {
+  /** Today's bucket (local-date). Never null — zeroed if no data. */
+  today: CostDayTotal;
+  /** 30 most-recent days (oldest first), zero-filled. */
+  last30Days: CostDayTotal[];
+  /** Rate table currently used. */
+  rates: CostRateTable;
+  /** Settings (budget + model). */
+  settings: CostSettings;
+  /** True if today's estimate has crossed the daily budget. */
+  budgetExceeded: boolean;
+  /** ISO timestamp of last successful sample. */
+  lastSampledAt: string | null;
+  /** Heuristic disclaimer — never null, always a short string. */
+  disclaimer: string;
 }
 
 export interface SyncSettings {

@@ -39,6 +39,20 @@ const panels: { id: SidebarPanel; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
+    id: 'cost',
+    label: 'Cost',
+    icon: (
+      // Currency-style glyph: outlined coin with an "$"-like S, kept stroke-only
+      // to match the other sidebar icons.
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M15 9.5C15 8.12 13.66 7 12 7s-3 1.12-3 2.5S10.34 12 12 12s3 1.12 3 2.5S13.66 17 12 17s-3-1.12-3-2.5" />
+        <line x1="12" y1="5" x2="12" y2="7" />
+        <line x1="12" y1="17" x2="12" y2="19" />
+      </svg>
+    ),
+  },
+  {
     id: 'compact',
     label: 'Compact',
     icon: (
@@ -113,7 +127,7 @@ export function Sidebar({ activePanel, onPanelChange }: SidebarProps) {
       gap: 4,
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-        {panels.slice(0, 6).map((panel) => (
+        {panels.slice(0, 7).map((panel) => (
           <SidebarButton
             key={panel.id}
             icon={panel.icon}
@@ -132,7 +146,7 @@ export function Sidebar({ activePanel, onPanelChange }: SidebarProps) {
       }} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {panels.slice(6).map((panel) => (
+        {panels.slice(7).map((panel) => (
           <SidebarButton
             key={panel.id}
             icon={panel.icon}

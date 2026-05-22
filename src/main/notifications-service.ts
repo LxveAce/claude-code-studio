@@ -11,9 +11,10 @@ const DEFAULTS: NotificationSettings = {
   enabled: false,
   notifyOnPtyExit: true,
   notifyOnSyncError: true,
+  notifyOnCostBudget: true,
 };
 
-type NotifKind = 'pty-exit' | 'sync-error' | 'test' | 'other';
+type NotifKind = 'pty-exit' | 'sync-error' | 'cost-budget' | 'test' | 'other';
 
 export class NotificationsService {
   private storePath: string;
@@ -51,6 +52,12 @@ export class NotificationsService {
       }
       next.notifyOnSyncError = partial.notifyOnSyncError;
     }
+    if (partial.notifyOnCostBudget !== undefined) {
+      if (typeof partial.notifyOnCostBudget !== 'boolean') {
+        throw new Error('notifyOnCostBudget must be boolean');
+      }
+      next.notifyOnCostBudget = partial.notifyOnCostBudget;
+    }
     this.settings = next;
     this.write();
     return { ...this.settings };
@@ -69,6 +76,17 @@ export class NotificationsService {
     this.show('sync-error', {
       title: 'Vault sync error',
       body: this.truncate(message, 200),
+    });
+  }
+
+  notifyCostBudget(estCostUSD: number, budgetUSD: number): void {
+    if (!this.settings.enabled || !this.settings.notifyOnCostBudget) return;
+    // Format as USD with 2-dp; never inject user-controlled text into body.
+    const est = formatUSD(estCostUSD);
+    const budget = formatUSD(budgetUSD);
+    this.show('cost-budget', {
+      title: 'Daily Claude cost budget hit',
+      body: `Today's estimate (${est}) crossed your ${budget} budget. Estimates are heuristic — verify in the Anthropic console.`,
     });
   }
 
@@ -131,6 +149,10 @@ export class NotificationsService {
         typeof parsed.notifyOnSyncError === 'boolean'
           ? parsed.notifyOnSyncError
           : DEFAULTS.notifyOnSyncError,
+      notifyOnCostBudget:
+        typeof parsed.notifyOnCostBudget === 'boolean'
+          ? parsed.notifyOnCostBudget
+          : DEFAULTS.notifyOnCostBudget,
     };
   }
 
@@ -149,4 +171,9 @@ export class NotificationsService {
       throw e;
     }
   }
+}
+
+function formatUSD(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return '$0.00';
+  return `$${n.toFixed(2)}`;
 }

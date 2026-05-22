@@ -139,6 +139,14 @@ interface Window {
       ) => Promise<import('./shared/types').NotificationSettings>;
       test: () => Promise<boolean>;
     };
+    cost: {
+      status: () => Promise<import('./shared/types').CostStatus>;
+      getSettings: () => Promise<import('./shared/types').CostSettings>;
+      setSettings: (
+        partial: Partial<import('./shared/types').CostSettings>
+      ) => Promise<import('./shared/types').CostSettings>;
+      resetHistory: () => Promise<boolean>;
+    };
     sync: {
       getSettings: () => Promise<import('./shared/types').SyncSettings>;
       setSettings: (

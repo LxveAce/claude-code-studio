@@ -177,6 +177,12 @@ export function SettingsPanel() {
               disabled={!notif.enabled}
               onChange={(v) => void updateNotif({ notifyOnSyncError: v })}
             />
+            <ToggleRow
+              label="On daily cost budget hit"
+              value={notif.notifyOnCostBudget}
+              disabled={!notif.enabled}
+              onChange={(v) => void updateNotif({ notifyOnCostBudget: v })}
+            />
             <button
               onClick={() => void window.electronAPI.notifications.test()}
               style={{

@@ -58,6 +58,7 @@ export function CommandPalette({
       { id: 'terminal', label: 'Terminal' },
       { id: 'commands', label: 'Commands' },
       { id: 'resources', label: 'Resources' },
+      { id: 'cost', label: 'Cost' },
       { id: 'compact', label: 'Compact' },
       { id: 'lmm', label: 'LMM' },
       { id: 'github', label: 'GitHub' },
@@ -131,6 +132,16 @@ export function CommandPalette({
         keywords: 'notification test ping',
         run: () => {
           void window.electronAPI.notifications.test();
+        },
+      },
+      {
+        id: 'cost:reset',
+        title: 'Cost: reset history',
+        subtitle: 'Clear stored daily totals (cannot be undone)',
+        group: 'Actions',
+        keywords: 'cost reset history clear tokens',
+        run: () => {
+          void window.electronAPI.cost.resetHistory();
         },
       },
     ];

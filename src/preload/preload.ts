@@ -119,6 +119,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setSettings: (partial: unknown) => ipcRenderer.invoke(IPC.NOTIF_SET_SETTINGS, partial),
     test: () => ipcRenderer.invoke(IPC.NOTIF_TEST),
   },
+  cost: {
+    status: () => ipcRenderer.invoke(IPC.COST_STATUS),
+    getSettings: () => ipcRenderer.invoke(IPC.COST_GET_SETTINGS),
+    setSettings: (partial: unknown) => ipcRenderer.invoke(IPC.COST_SET_SETTINGS, partial),
+    resetHistory: () => ipcRenderer.invoke(IPC.COST_RESET_HISTORY),
+  },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     maximize: () => ipcRenderer.send('window:maximize'),

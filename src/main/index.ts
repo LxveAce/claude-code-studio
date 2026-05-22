@@ -10,6 +10,7 @@ import { AuthService } from './auth-service';
 import { CloudSyncService } from './cloud-sync';
 import { SnippetsService } from './snippets-service';
 import { NotificationsService } from './notifications-service';
+import { CostService } from './cost-service';
 import { IPC } from '../shared/ipc-channels';
 
 if (require('electron-squirrel-startup')) {
@@ -30,6 +31,7 @@ let authService: AuthService | null = null;
 let cloudSyncService: CloudSyncService | null = null;
 let snippetsService: SnippetsService | null = null;
 let notificationsService: NotificationsService | null = null;
+let costService: CostService | null = null;
 let suppressNextPtyExitNotification = false;
 
 function getGitHub(): GitHubService {
@@ -68,6 +70,19 @@ function getSnippets(): SnippetsService {
 function getNotifications(): NotificationsService {
   if (!notificationsService) notificationsService = new NotificationsService();
   return notificationsService;
+}
+
+function getCost(): CostService {
+  if (!costService) {
+    costService = new CostService((day, budget) => {
+      try {
+        getNotifications().notifyCostBudget(day.estCostUSD, budget);
+      } catch {
+        // notifications must never break sampling
+      }
+    });
+  }
+  return costService;
 }
 
 const createWindow = () => {
@@ -294,6 +309,26 @@ function setupNotifications() {
   ipcMain.handle(IPC.NOTIF_TEST, () => getNotifications().fireTest());
 }
 
+function setupCost() {
+  ipcMain.handle(IPC.COST_STATUS, () => getCost().getStatus());
+  ipcMain.handle(IPC.COST_GET_SETTINGS, () => getCost().getSettings());
+  ipcMain.handle(IPC.COST_SET_SETTINGS, (_event, partial) =>
+    getCost().setSettings(partial)
+  );
+  ipcMain.handle(IPC.COST_RESET_HISTORY, async () => {
+    const svc = getCost();
+    svc.resetHistory();
+    // Force a sample so re-ingested vaults appear immediately rather than
+    // waiting up to 30 s for the next poll. Best-effort — sample is wrapped
+    // in its own try/catch.
+    await svc.sampleNow();
+    return true;
+  });
+  // Start the 30 s polling loop after IPC is wired so the first sample's data
+  // is available the moment the renderer requests it.
+  getCost().start();
+}
+
 function setupLMM() {
   ipcMain.handle(IPC.LMM_GET_SETTINGS, () => getLMM().getSettings());
   ipcMain.handle(IPC.LMM_SET_SETTINGS, (_event, partial) =>
@@ -366,6 +401,7 @@ app.whenReady().then(() => {
   setupCloudSync();
   setupSnippets();
   setupNotifications();
+  setupCost();
   setupWindowControls();
 
   app.on('activate', () => {
@@ -378,6 +414,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   ptyManager.kill();
   resourceMonitor.stop();
+  costService?.stop();
   if (process.platform !== 'darwin') {
     app.quit();
   }
