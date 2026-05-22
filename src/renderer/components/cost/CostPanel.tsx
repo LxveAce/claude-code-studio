@@ -4,12 +4,15 @@ import type {
   CostModel,
   CostRateTable,
   CostStatus,
+  SessionTotal,
 } from '../../../shared/types';
 
 const REFRESH_INTERVAL_MS = 5_000; // panel refresh (cheap IPC call)
 
 export function CostPanel() {
   const [status, setStatus] = useState<CostStatus | null>(null);
+  const [sessions, setSessions] = useState<SessionTotal[] | null>(null);
+  const [showAllSessions, setShowAllSessions] = useState(false);
   const [budgetInput, setBudgetInput] = useState<string>('');
   const [savingBudget, setSavingBudget] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -18,8 +21,12 @@ export function CostPanel() {
 
   const refresh = useCallback(async () => {
     try {
-      const next = await window.electronAPI.cost.status();
-      setStatus(next);
+      const [s, sess] = await Promise.all([
+        window.electronAPI.cost.status(),
+        window.electronAPI.cost.listSessions(),
+      ]);
+      setStatus(s);
+      setSessions(sess);
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : 'Failed to load cost status');
     }
@@ -195,6 +202,13 @@ export function CostPanel() {
           </span>
         </div>
       </div>
+
+      {/* Conversations (Phase 7f) */}
+      <ConversationsSection
+        sessions={sessions}
+        showAll={showAllSessions}
+        onToggleShowAll={() => setShowAllSessions((v) => !v)}
+      />
 
       {/* Budget input */}
       <div
@@ -517,4 +531,187 @@ function formatUSD(n: number): string {
 function formatPercent(value: number, budget: number): string {
   if (!Number.isFinite(value) || !Number.isFinite(budget) || budget <= 0) return '';
   return `${Math.round((value / budget) * 100)}%`;
+}
+
+// ---------------------------------------------------------------------------
+// Conversations section (Phase 7f): per-session token + cost breakdown.
+// Renders nothing if there's no history yet (first-launch / post-reset).
+// ---------------------------------------------------------------------------
+function ConversationsSection({
+  sessions,
+  showAll,
+  onToggleShowAll,
+}: {
+  sessions: SessionTotal[] | null;
+  showAll: boolean;
+  onToggleShowAll: () => void;
+}) {
+  if (!sessions) return null;
+  const COLLAPSED_COUNT = 5;
+  const visible = showAll ? sessions : sessions.slice(0, COLLAPSED_COUNT);
+  const totalCost = sessions.reduce((a, s) => a + s.estCostUSD, 0);
+
+  return (
+    <div
+      style={{
+        padding: '10px 12px',
+        background: 'var(--bg-primary)',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border)',
+        marginBottom: 12,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 8,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--text-secondary)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}
+        >
+          Conversations ({sessions.length})
+        </div>
+        <div
+          style={{
+            fontSize: 10,
+            color: 'var(--text-muted)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          total est. {formatUSD(totalCost)}
+        </div>
+      </div>
+
+      {sessions.length === 0 ? (
+        <div
+          style={{
+            padding: '12px 0',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            textAlign: 'center',
+          }}
+        >
+          No conversation history yet. Sessions appear here once
+          compact-controller writes vault snapshots.
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {visible.map((s) => (
+              <ConversationRow key={s.sessionId} session={s} />
+            ))}
+          </div>
+          {sessions.length > COLLAPSED_COUNT && (
+            <button
+              onClick={onToggleShowAll}
+              style={{
+                marginTop: 8,
+                width: '100%',
+                padding: '5px 10px',
+                fontSize: 10,
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+              }}
+            >
+              {showAll
+                ? `Show top ${COLLAPSED_COUNT}`
+                : `Show all ${sessions.length}`}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ConversationRow({ session }: { session: SessionTotal }) {
+  // session_id is a UUID-shaped string; show the first 8 chars + ellipsis
+  // for the row, with the full id available on hover (title attr).
+  const shortId =
+    session.sessionId.length > 12
+      ? session.sessionId.slice(0, 8) + '…'
+      : session.sessionId;
+  return (
+    <div
+      title={session.sessionId}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr auto auto',
+        gap: 8,
+        alignItems: 'center',
+        padding: '5px 8px',
+        background: session.isCurrent
+          ? 'var(--accent-gradient-soft)'
+          : 'var(--bg-secondary)',
+        border: `1px solid ${session.isCurrent ? 'var(--border-active)' : 'var(--border)'}`,
+        borderRadius: 'var(--radius-sm)',
+        fontSize: 11,
+        fontVariantNumeric: 'tabular-nums',
+      }}
+    >
+      <div
+        style={{
+          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        {session.isCurrent && (
+          <span
+            title="Active conversation (live in state.json)"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: 'var(--accent)',
+              flexShrink: 0,
+            }}
+          />
+        )}
+        <code
+          style={{
+            fontSize: 10,
+            color: session.isCurrent ? 'var(--accent-light)' : 'var(--text-secondary)',
+            fontFamily: 'monospace',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {shortId}
+        </code>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+          {session.lastActivityDate}
+        </span>
+      </div>
+      <div
+        title={`in ${session.inputTokens.toLocaleString()} · out ${session.outputTokens.toLocaleString()}`}
+        style={{ fontSize: 10, color: 'var(--text-muted)' }}
+      >
+        {formatTokens(session.inputTokens + session.outputTokens)} tok
+      </div>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: session.isCurrent ? 'var(--accent-light)' : 'var(--text-primary)',
+        }}
+      >
+        {formatUSD(session.estCostUSD)}
+      </div>
+    </div>
+  );
 }

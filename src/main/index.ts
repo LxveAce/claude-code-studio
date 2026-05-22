@@ -439,6 +439,7 @@ function setupCost() {
   ipcMain.handle(IPC.COST_SET_SETTINGS, (_event, partial) =>
     getCost().setSettings(partial)
   );
+  ipcMain.handle(IPC.COST_LIST_SESSIONS, () => getCost().listSessions());
   ipcMain.handle(IPC.COST_RESET_HISTORY, async () => {
     const svc = getCost();
     svc.resetHistory();

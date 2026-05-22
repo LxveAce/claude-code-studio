@@ -9,6 +9,7 @@ import type {
   CostRateTable,
   CostSettings,
   CostStatus,
+  SessionTotal,
 } from '../shared/types';
 
 const STATE_DIR = path.join(os.homedir(), '.claude', 'compact-controller');
@@ -106,6 +107,10 @@ export class CostService {
   /** vault file name -> last mtime (ms) we processed. Avoids re-parsing
    *  unchanged vault files every 30 s. */
   private vaultMtimeCache = new Map<string, number>();
+  /** Most recent session_id seen in state.json. null when state.json is
+   *  absent or unparseable. Used by listSessions() to flag the active
+   *  conversation in the panel. */
+  private currentSessionId: string | null = null;
 
   constructor(private onBudgetExceeded: (today: CostDayTotal, budget: number) => void = () => {}) {
     const userData = app.getPath('userData');
@@ -233,6 +238,41 @@ export class CostService {
     }
   }
 
+  /**
+   * Per-conversation token totals (Phase 7f). Returns one row per
+   * session_id ever seen, sorted by last-activity date descending
+   * (most recent first). Cost is estimated against the currently-selected
+   * model rate — same heuristic caveats as the daily totals apply.
+   */
+  listSessions(): SessionTotal[] {
+    const out: SessionTotal[] = [];
+    const current = this.currentSessionId;
+    for (const [sid, rec] of Object.entries(this.history.sessions)) {
+      if (!rec || typeof rec !== 'object') continue;
+      if (typeof sid !== 'string' || sid.length === 0 || sid.length > 256) continue;
+      if (!isValidDateKey(rec.date)) continue;
+      const inputTokens = clampTokens(rec.inputTokens);
+      const outputTokens = clampTokens(rec.outputTokens);
+      out.push({
+        sessionId: sid,
+        inputTokens,
+        outputTokens,
+        estCostUSD: this.estimateCost(inputTokens, outputTokens),
+        lastActivityDate: rec.date,
+        isCurrent: current === sid,
+      });
+    }
+    // Sort by date desc; current session pinned to top regardless of date
+    // (so the active conversation is always visible without scrolling even
+    // if it hasn't crossed a date boundary).
+    out.sort((a, b) => {
+      if (a.isCurrent && !b.isCurrent) return -1;
+      if (!a.isCurrent && b.isCurrent) return 1;
+      return b.lastActivityDate.localeCompare(a.lastActivityDate);
+    });
+    return out;
+  }
+
   private readStateSample(): SessionSample | null {
     let stat: fs.Stats;
     try {
@@ -258,6 +298,10 @@ export class CostService {
     const sessionId = typeof parsed.session_id === 'string' ? parsed.session_id : null;
     if (!sessionId) return null;
     if (sessionId.length === 0 || sessionId.length > 256) return null;
+    // Remember the live state's session_id so listSessions() can flag it
+    // even if input+output is 0 (a brand-new conversation may exist before
+    // the first input lands in state.json).
+    this.currentSessionId = sessionId;
     const input = clampTokens(parsed.input_tokens);
     const output = clampTokens(parsed.output_tokens);
     if (input === 0 && output === 0) return null;
