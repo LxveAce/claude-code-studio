@@ -164,6 +164,7 @@ interface Window {
         partial: Partial<import('./shared/types').CostSettings>
       ) => Promise<import('./shared/types').CostSettings>;
       resetHistory: () => Promise<boolean>;
+      listSessions: () => Promise<import('./shared/types').SessionTotal[]>;
     };
     sync: {
       getSettings: () => Promise<import('./shared/types').SyncSettings>;

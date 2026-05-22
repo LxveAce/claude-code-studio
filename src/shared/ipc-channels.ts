@@ -81,6 +81,7 @@ export const IPC = {
   COST_GET_SETTINGS: 'cost:get-settings',
   COST_SET_SETTINGS: 'cost:set-settings',
   COST_RESET_HISTORY: 'cost:reset-history',
+  COST_LIST_SESSIONS: 'cost:list-sessions',
 
   LMM_GET_SETTINGS: 'lmm:get-settings',
   LMM_SET_SETTINGS: 'lmm:set-settings',

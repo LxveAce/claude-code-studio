@@ -246,6 +246,24 @@ export interface CostStatus {
   disclaimer: string;
 }
 
+/**
+ * Per-conversation (session_id) token totals — Phase 7f.
+ * Aggregates the same data CostService already collects (state.json +
+ * vault files), grouped by session instead of by day.
+ */
+export interface SessionTotal {
+  sessionId: string;
+  inputTokens: number;
+  outputTokens: number;
+  /** Estimated USD cost at the currently-selected model rate. */
+  estCostUSD: number;
+  /** Local-date key (YYYY-MM-DD) of the most recent sample for this session. */
+  lastActivityDate: string;
+  /** True if this session_id was seen in the live state.json (i.e. is the
+   *  current conversation), false if only from a vault snapshot. */
+  isCurrent: boolean;
+}
+
 export interface SyncSettings {
   enabled: boolean;
   owner: string | null;

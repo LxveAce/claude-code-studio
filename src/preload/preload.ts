@@ -158,6 +158,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSettings: () => ipcRenderer.invoke(IPC.COST_GET_SETTINGS),
     setSettings: (partial: unknown) => ipcRenderer.invoke(IPC.COST_SET_SETTINGS, partial),
     resetHistory: () => ipcRenderer.invoke(IPC.COST_RESET_HISTORY),
+    listSessions: () => ipcRenderer.invoke(IPC.COST_LIST_SESSIONS),
   },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
