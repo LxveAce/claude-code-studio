@@ -10,7 +10,10 @@ import { AuthService } from './auth-service';
 import { CloudSyncService } from './cloud-sync';
 import { SnippetsService } from './snippets-service';
 import { NotificationsService } from './notifications-service';
+import { HotkeysService } from './hotkeys-service';
+import { TrayService } from './tray-service';
 import { IPC } from '../shared/ipc-channels';
+import type { HotkeyAction } from '../shared/types';
 
 if (require('electron-squirrel-startup')) {
   app.quit();
@@ -30,7 +33,10 @@ let authService: AuthService | null = null;
 let cloudSyncService: CloudSyncService | null = null;
 let snippetsService: SnippetsService | null = null;
 let notificationsService: NotificationsService | null = null;
+let hotkeysService: HotkeysService | null = null;
+let trayService: TrayService | null = null;
 let suppressNextPtyExitNotification = false;
+let isQuitting = false;
 
 function getGitHub(): GitHubService {
   if (!githubService) githubService = new GitHubService();
@@ -70,6 +76,16 @@ function getNotifications(): NotificationsService {
   return notificationsService;
 }
 
+function getHotkeys(): HotkeysService {
+  if (!hotkeysService) hotkeysService = new HotkeysService();
+  return hotkeysService;
+}
+
+function getTray(): TrayService {
+  if (!trayService) trayService = new TrayService();
+  return trayService;
+}
+
 const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -87,9 +103,18 @@ const createWindow = () => {
     },
   });
 
-  mainWindow.on('close', () => {
-    resourceMonitor.stop();
-    ptyManager.kill();
+  mainWindow.on('close', (event) => {
+    // If minimize-to-tray is on and we're not in the middle of a real quit,
+    // hide the window instead of destroying it. PTY and resource monitor
+    // keep running in the background.
+    if (!isQuitting && getTray().isMinimizeToTrayEnabled() && mainWindow) {
+      event.preventDefault();
+      mainWindow.hide();
+      return;
+    }
+    // Real close path — let main quit handler do the heavy cleanup. We avoid
+    // doing it here too because Electron will fire window-all-closed which
+    // calls into the same shutdown sequence.
   });
 
   mainWindow.on('closed', () => {
@@ -336,6 +361,52 @@ function setupWindowControls() {
   ipcMain.on('window:close', () => mainWindow?.close());
 }
 
+function setupHotkeys() {
+  ipcMain.handle(IPC.HOTKEYS_GET, () => getHotkeys().getSettings());
+  ipcMain.handle(
+    IPC.HOTKEYS_SET_BINDING,
+    (_event, action: unknown, chord: unknown) =>
+      getHotkeys().setBinding(action, chord)
+  );
+  ipcMain.handle(IPC.HOTKEYS_RESET, () => getHotkeys().resetDefaults());
+}
+
+function setupTray() {
+  const tray = getTray();
+  tray.attach({
+    getWindow: () => mainWindow,
+    onToggleCompact: async () => {
+      try {
+        const status = compactController.getStatus();
+        if (status.enabled) {
+          compactController.uninstall();
+        } else {
+          compactController.install();
+        }
+      } catch {
+        // If the user has a malformed settings.json we don't want the tray
+        // click to crash the app. Best-effort only.
+      }
+    },
+    onQuit: () => {
+      isQuitting = true;
+      app.quit();
+    },
+  });
+  ipcMain.handle(IPC.TRAY_GET_SETTINGS, () => getTray().getSettings());
+  ipcMain.handle(IPC.TRAY_SET_SETTINGS, (_event, partial) =>
+    getTray().setSettings(partial)
+  );
+}
+
+/** Forward a tray-triggered action to the renderer. Used by future tray
+ *  menu items that map onto renderer-side handlers. */
+function dispatchTrayAction(action: HotkeyAction): void {
+  safeSend(IPC.TRAY_INVOKE_ACTION, action);
+}
+// Re-export so unused-var doesn't bite; this hook is here for future tray menu growth.
+void dispatchTrayAction;
+
 app.on('web-contents-created', (_event, contents) => {
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
   contents.on('will-navigate', (event, url) => {
@@ -367,17 +438,43 @@ app.whenReady().then(() => {
   setupSnippets();
   setupNotifications();
   setupWindowControls();
+  setupHotkeys();
+  setupTray();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
+    } else {
+      mainWindow?.show();
+      mainWindow?.focus();
     }
   });
 });
 
+app.on('before-quit', () => {
+  // Mark the quit so the window close handler stops intercepting.
+  isQuitting = true;
+  try {
+    resourceMonitor.stop();
+  } catch {
+    // ignore
+  }
+  try {
+    ptyManager.kill();
+  } catch {
+    // ignore
+  }
+  try {
+    trayService?.dispose();
+  } catch {
+    // ignore
+  }
+});
+
 app.on('window-all-closed', () => {
-  ptyManager.kill();
-  resourceMonitor.stop();
+  // If minimize-to-tray is on, the window is just hidden — Electron will not
+  // actually fire window-all-closed in that case. So when this fires, we're
+  // either on macOS (stay alive) or genuinely shutting down.
   if (process.platform !== 'darwin') {
     app.quit();
   }

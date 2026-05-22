@@ -12,6 +12,8 @@ import { LMMPanel } from './components/lmm/LMMPanel';
 import { AuthPanel } from './components/auth/AuthPanel';
 import { SyncPanel } from './components/sync/SyncPanel';
 import { CommandPalette } from './components/palette/CommandPalette';
+import { buildChordMap, chordFromEvent } from './hotkeys';
+import type { HotkeyAction, HotkeyBinding } from '../shared/types';
 
 export type SidebarPanel =
   | 'terminal'
@@ -28,6 +30,7 @@ export function App() {
   const [activePanel, setActivePanel] = useState<SidebarPanel>('terminal');
   const [claudePid, setClaudePid] = useState<number>(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [bindings, setBindings] = useState<HotkeyBinding[]>([]);
   const terminalSendRef = useRef<((data: string) => void) | null>(null);
 
   const handleSendCommand = useCallback((command: string) => {
@@ -52,20 +55,80 @@ export function App() {
     void window.electronAPI.terminal.restart();
   }, []);
 
-  // Global Ctrl+Shift+P / Cmd+Shift+P to open the palette.
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
-        // Don't hijack the keystroke if the user is mid-paste in xterm — xterm
-        // doesn't see modified-P as input anyway, so this is safe globally.
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
+  // Dispatch a renderer-side action by id. Used both by the local hotkey
+  // listener and by tray-triggered events from the main process.
+  const dispatchAction = useCallback(
+    (action: HotkeyAction) => {
+      switch (action) {
+        case 'palette.open':
+          setPaletteOpen((v) => !v);
+          break;
+        case 'terminal.restart':
+          void window.electronAPI.terminal.restart();
+          break;
+        case 'compact.toggle':
+          setActivePanel('compact');
+          break;
+        case 'panel.lmm':
+          setActivePanel('lmm');
+          break;
+        case 'panel.github':
+          setActivePanel('github');
+          break;
+        default:
+          // unknown action id — ignore
+          break;
       }
+    },
+    []
+  );
+
+  // Load hotkey bindings on mount, and refresh when settings UI announces
+  // a change via a window event.
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const s = await window.electronAPI.hotkeys.get();
+        if (alive) setBindings(s.bindings);
+      } catch {
+        // Defaults will be used (empty list = no hotkeys).
+      }
+    };
+    void load();
+    const onChanged = () => void load();
+    window.addEventListener('hotkeys-changed', onChanged);
+    return () => {
+      alive = false;
+      window.removeEventListener('hotkeys-changed', onChanged);
+    };
+  }, []);
+
+  // Subscribe to tray-triggered actions (main → renderer).
+  useEffect(() => {
+    const unsub = window.electronAPI.tray.onInvokeAction((action) => {
+      dispatchAction(action as HotkeyAction);
+    });
+    return unsub;
+  }, [dispatchAction]);
+
+  // Global hotkey dispatcher. Runs at window level so xterm's keystrokes
+  // also flow through here; we preventDefault on a match.
+  useEffect(() => {
+    const chordMap = buildChordMap(bindings);
+    if (chordMap.size === 0) return;
+    const handler = (e: KeyboardEvent) => {
+      const chord = chordFromEvent(e);
+      if (!chord) return;
+      const action = chordMap.get(chord);
+      if (!action) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dispatchAction(action);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [bindings, dispatchAction]);
 
   const showRightPanel = activePanel !== 'terminal';
 

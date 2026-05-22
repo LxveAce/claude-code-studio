@@ -69,4 +69,14 @@ export const IPC = {
   LMM_SAVE_PHASE: 'lmm:save-phase',
   LMM_DELETE_CYCLE: 'lmm:delete-cycle',
   LMM_PICK_JOURNAL_DIR: 'lmm:pick-journal-dir',
+
+  HOTKEYS_GET: 'hotkeys:get',
+  HOTKEYS_SET_BINDING: 'hotkeys:set-binding',
+  HOTKEYS_RESET: 'hotkeys:reset',
+
+  TRAY_GET_SETTINGS: 'tray:get-settings',
+  TRAY_SET_SETTINGS: 'tray:set-settings',
+
+  /** Main → renderer: tray asked us to fire a renderer-side action. */
+  TRAY_INVOKE_ACTION: 'tray:invoke-action',
 } as const;

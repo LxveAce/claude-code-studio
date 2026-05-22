@@ -179,5 +179,22 @@ interface Window {
       maximize: () => void;
       close: () => void;
     };
+    hotkeys: {
+      get: () => Promise<import('./shared/types').HotkeySettings>;
+      setBinding: (
+        action: import('./shared/types').HotkeyAction,
+        chord: string | null
+      ) => Promise<import('./shared/types').HotkeySettings>;
+      reset: () => Promise<import('./shared/types').HotkeySettings>;
+    };
+    tray: {
+      getSettings: () => Promise<import('./shared/types').TraySettings>;
+      setSettings: (
+        partial: Partial<import('./shared/types').TraySettings>
+      ) => Promise<import('./shared/types').TraySettings>;
+      onInvokeAction: (
+        cb: (action: import('./shared/types').HotkeyAction) => void
+      ) => () => void;
+    };
   };
 }

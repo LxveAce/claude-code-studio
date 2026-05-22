@@ -124,4 +124,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     maximize: () => ipcRenderer.send('window:maximize'),
     close: () => ipcRenderer.send('window:close'),
   },
+  hotkeys: {
+    get: () => ipcRenderer.invoke(IPC.HOTKEYS_GET),
+    setBinding: (action: string, chord: string | null) =>
+      ipcRenderer.invoke(IPC.HOTKEYS_SET_BINDING, action, chord),
+    reset: () => ipcRenderer.invoke(IPC.HOTKEYS_RESET),
+  },
+  tray: {
+    getSettings: () => ipcRenderer.invoke(IPC.TRAY_GET_SETTINGS),
+    setSettings: (partial: unknown) =>
+      ipcRenderer.invoke(IPC.TRAY_SET_SETTINGS, partial),
+    onInvokeAction: (callback: (action: string) => void) =>
+      subscribe<[string]>(IPC.TRAY_INVOKE_ACTION, callback),
+  },
 });
