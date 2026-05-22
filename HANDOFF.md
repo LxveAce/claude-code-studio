@@ -1,142 +1,210 @@
 # Claude Code Studio - Development Handoff
 
-## Current State (2026-05-21)
+## Current State (2026-05-22)
 
-The app launches, renders the full UI, and embeds Claude Code via node-pty with a real pseudo-terminal. All core infrastructure is in place.
+All seven plan phases shipped. The app embeds Claude Code via node-pty
+in resizable split panes, with sidebar panels for compact-controller,
+commands, GitHub, LMM journaling, vault sync, account, cost tracking,
+and settings. Auto-updater, system tray, command palette, snippets,
+notifications, and rebindable hotkeys are wired in. Each phase carries
+its own self-red-team review at the repo root (`SECURITY_REVIEW_*.md`).
 
 ## What's Working
 
 ### Phase 1: Shell + Terminal (COMPLETE)
-- Electron 42 + React 19 + Vite + TypeScript foundation
-- node-pty spawns `claude.exe` with full ANSI support via xterm.js
-- Auto-launches Claude Code on startup
-- Full interactivity (input, resize, restart on exit)
-- Frameless window with custom title bar + window controls
-- node-pty patches applied via `scripts/patch-node-pty.js` (postinstall)
+- Electron 42 + React 19 + Vite + TypeScript foundation.
+- node-pty spawns `claude.exe` with full ANSI support via xterm.js.
+- Frameless window with custom title bar + window controls.
+- Hardening (Phase 4 follow-up): CSP meta, sandbox: true,
+  contextIsolation: true, navigation lockdown via `web-contents-created`.
 
 ### Phase 2: Resource Monitor (COMPLETE)
-- `systeminformation` polls CPU/RAM/GPU every 2 seconds
-- Process tree walking from Claude's root PID for per-process attribution
-- GaugeBar component: dual-fill bars (purple=Claude, grey=system)
-- Mini stat cards for Claude process count and RAM usage
-- GPU gracefully shows N/A when utilization data unavailable (Intel iGPU)
+- `systeminformation` polls CPU/RAM/GPU every 2 s.
+- Process-tree walking from Claude's root PID(s) — aggregates across
+  multiple panes (Phase 7c).
+- GaugeBar with dual-fill (purple = Claude, grey = system).
 
-### Phase 3: Compact Controller Integration (COMPLETE)
-- Reads compact-controller state.json for live token/turn/vault counts
-- Toggle switch installs/uninstalls hooks in `~/.claude/settings.json`
-- Shows config (max vaults, transcript tail size, logging)
-- Polls status every 3 seconds
+### Phase 3: Compact Controller (COMPLETE)
+- Reads `~/.claude/compact-controller/state.json` for token/turn/vault
+  counts.
+- Toggle installs/uninstalls hooks in `~/.claude/settings.json` with
+  parse-failure refusal + `.bak` backup (Phase 4 C1 remediation).
+- Exact-path hook matching (Phase 4 M4) so other users' similarly-named
+  projects aren't false-positive matches.
 
-### Commands Panel (COMPLETE)
-- Quick Actions: clickable buttons for model/effort/session/workflow commands
-- All Commands: collapsible accordion with every Claude Code slash command
-- Shortcuts: keyboard shortcut reference with kbd-styled keys
-- Clicking a command types it directly into Claude Code's terminal
+### Phase 4: GitHub Integration (COMPLETE)
+- `src/main/git-service.ts` — local git ops (branch/status/ahead/behind),
+  parses GitHub owner/repo from origin URL, UNC + symlink hardening,
+  5 s execFile timeout.
+- `src/main/github-service.ts` — Octokit wrapper for repos/commits/
+  branches/PRs/issues; PAT stored encrypted via Electron safeStorage
+  (DPAPI on Windows), plaintext fallback requires explicit opt-in.
+- GitHub panel: WorkingDirCard, ConnectGitHub, RepoHeader, CommitList,
+  BranchList, PRList, IssueList.
+- `shell.openExternal` URL allowlist (github.com / *.github.com).
 
-### Settings Panel (COMPLETE)
-- 6 accent color themes: Purple, Blue, Emerald, Rose, Amber, Cyan
-- Changes all CSS variables live (gradients, glows, gauges, borders)
-- Persists selection in localStorage
-- Shows terminal config and app info
+### Phase 4.5: LMM Panel (COMPLETE)
+- In-app sidebar panel walking the Lincoln Manifold Method
+  (RAW → NODES → REFLECT → SYNTHESIZE) with toggle, journal-dir picker,
+  variant (quick/deep) selector, persisted cycles.
+- Path-traversal-safe cycle ids (`^[a-z0-9][a-z0-9-]{0,79}$`).
+- Per-file size cap, scan cap, cumulative cap on save.
+
+### Phase 5: Auth + Cross-Device Settings Sync (COMPLETE)
+- `src/main/auth-service.ts` with two backends behind one contract:
+  `local-stub` (scrypt + safeStorage in userData) and `http` (POST
+  register/login/logout, GET/PUT /settings against a configured
+  https:// baseUrl — for a future Cloudflare Worker drop-in).
+- "Continue without login" as primary CTA. GitHub PAT explicitly
+  EXCLUDED from sync (device-local encryption key).
+- Per-user sync file scoping (`auth-synced-settings.<uuid>.json`),
+  NaN-safe expiry, pinned scrypt keylen, validated session shape.
+
+### Phase 6: Vault Sync to Private GitHub Repo (COMPLETE)
+- `src/main/cloud-sync.ts` watches `~/.claude/compact-controller/vault/`
+  and pushes each `vault-*.json` to `deviceName/vault-*.json` in a
+  user-chosen private GitHub repo. Setup wizard (create-new or
+  use-existing) with consent gate + write-access verification.
+- Per-file failure backoff (3 attempts then 15-min cooldown).
+- "Uploads are append-only" warning + delete-remote-vault button.
+
+### Phase 7a: Command Palette + Snippets + Notifications (COMPLETE)
+- Ctrl+Shift+P palette with fuzzy-search across panels, themes,
+  snippet inserts, terminal actions.
+- Snippet store (CRUD + atomic JSON, 64 KB / 500 cap).
+- Desktop notification service with per-kind throttling, settings
+  toggles, and a test button.
+
+### Phase 7b: Auto-Updater + Installer (COMPLETE)
+- `src/main/updater-service.ts` wraps `update-electron-app` for GitHub
+  Releases. Dev mode + non-Windows + user-disable gates.
+- StatusBar "Update vX.Y.Z ready" badge; SettingsPanel Updates section
+  with channel toggle, check-now (rate-limited), and reason copy.
+- `forge.config.ts`: `PublisherGithub` (draft), Squirrel branding
+  fields, commented signing/icon placeholders.
+
+### Phase 7c: Split Panes + Session Persistence (COMPLETE)
+- react-resizable-panels split tree with `PtyRegistry` (max 16 panes).
+- Per-pane PTY with reattach-if-alive semantics. ResourceMonitor
+  aggregates across all live panes.
+- `SessionService` persists layout tree + active panel + theme to
+  `<userData>/session.json` with depth/node caps + sanitization.
+- Palette: Split horizontal/vertical, Close pane, Focus next/prev,
+  Reset layout.
+
+### Phase 7d: System Tray + Custom Hotkeys (COMPLETE)
+- Tray icon (16x16 base64 PNG) + context menu (Show / Toggle Compact
+  / Quit). Minimize-to-tray-on-close toggle.
+- Shutdown consolidated into `before-quit` — closing the window while
+  tray is on hides it (PTYs survive) instead of quitting.
+- Rebindable shortcuts service: click-to-record chords, conflict
+  detection, persisted in `<userData>/hotkeys.json`.
+
+### Phase 7e: Token Cost Tracker (COMPLETE)
+- `src/main/cost-service.ts` polls compact-controller state + vaults
+  every 30 s. Per-session dedup, per-model rate table, daily totals.
+- `CostPanel` with stat cards, 30-day inline-SVG sparkline, daily
+  budget setting, reset history.
+- Notification fires once per day when the budget is exceeded.
+- In-panel disclaimer: estimates are a lower bound (vaults lack
+  per-session output counts).
 
 ### UI Design (COMPLETE)
-- Modern dark theme (#0f0f1a base) with glassmorphism-inspired elements
-- SVG icons throughout (sidebar, title bar, window controls)
-- Design tokens: `--radius-*`, `--shadow-*`, `--transition-*`
-- fadeIn/slideIn animations for panel transitions
-- Tooltip labels on sidebar hover
-- Connection status dot with glow in status bar
-
-## Known Issues
-
-1. **Terminal resize on panel toggle**: When the right sidebar opens/closes, the terminal sometimes doesn't resize cleanly. A debounced ResizeObserver fix has been applied but may need further tuning.
-
-2. **node-pty build patches**: The postinstall script (`scripts/patch-node-pty.js`) patches node-pty's build files to fix:
-   - `GetCommitHash.bat` path resolution in winpty.gyp
-   - Missing Spectre-mitigated MSVC libraries
-   
-   After `npm install` on a new machine, run:
-   ```
-   node scripts/patch-node-pty.js
-   npx electron-rebuild -m . --only node-pty
-   ```
-
-3. **Crash on close**: Fixed with `safeSend()` guard and cleanup in window `close` event, but verify on home machine.
+- Modern dark theme (#0f0f1a base) + 6 accent presets (Purple/Blue/
+  Emerald/Rose/Amber/Cyan). Theme apply extracted to
+  `src/renderer/theme-presets.ts` so SettingsPanel and CommandPalette
+  share one source of truth.
+- SVG icons everywhere; design tokens for radius/shadow/transition;
+  fadeIn/slideIn animations.
 
 ## What's Next
 
-### Phase 4: GitHub Integration
-- `src/main/github-service.ts` — Octokit wrapper for repos, PRs, issues, branches
-- `src/main/git-service.ts` — Local git operations (detect repo from CWD, branch, status)
-- GitHub panel components: RepoInfo, CommitList, BranchList, PRList, IssueList
-- Store GitHub PAT encrypted via electron-store
-- Auto-detect repo from terminal CWD
+Phase 7 closed the original plan. Concrete follow-ups are scoped as
+deferred Mediums in the various `SECURITY_REVIEW_*.md` files. Highest-
+leverage open items:
 
-### Phase 5: Auth + Cloud Database
-- Deploy Cloudflare Worker with auth endpoints (register, login, settings)
-- Create private repo `claude-studio-auth` for user data
-- `src/main/auth-service.ts` — calls Worker API
-- Auth panel: login/register forms, "Continue without login" prominent
-- API contract is backend-agnostic (designed for Supabase migration later)
-
-### Phase 6: Conversation Vault Sync
-- `src/main/cloud-sync.ts` — commit vault files to user's private GitHub repo
-- Watch `~/.claude/compact-controller/vault/` for new files
-- Sync wizard UI to create/connect sync repo
-- Pull vaults on startup from other devices
-
-### Phase 7: Power User Features
-- Split panes (react-resizable-panels + additional PTY instances)
-- Command palette (Ctrl+Shift+P)
-- Desktop notifications (Electron Notification API)
-- Session persistence (save/restore layout)
-- Prompt snippets library
-- Token cost tracker (chart from stop hook data)
-- System tray (minimize to tray)
-- Custom hotkeys (rebindable)
-- Auto-updater (electron-updater + GitHub Releases)
-- Windows installer (NSIS via maker-squirrel)
-
-### Additional Scope (Added During Session)
-- Raw CLI/CMD terminal view toggle (switch between GUI and raw terminal)
-- Full GUI reskin pass after all phases complete
-- CLI commands as clickable buttons (DONE - in Commands panel)
-- Accent color theme picker (DONE - in Settings panel)
+1. **Tray icon HiDPI variants** — current tray icon is a single 16x16
+   PNG; supply @2x for crisp Retina.
+2. **Hotkey cold-start window** — App.tsx initializes bindings to `[]`,
+   so global hotkeys (including Ctrl+Shift+P) don't work for ~50 ms
+   until the IPC resolves. Register a hardcoded palette-open fallback
+   while loading.
+3. **Cost panel model awareness** — vault data doesn't record which
+   model was used; cost is currently estimated against a single chosen
+   model. Either ship a per-day model picker or add a "rough estimate
+   only" persistent banner.
+4. **Updater channel routing** — UI lets the user pick `beta`, but the
+   `update-electron-app` publisher pipeline only points at stable
+   Releases. Either split the publisher or remove the beta toggle.
+5. **Session migration** — `SessionState` has `version: 1` but no
+   migration path for future schema bumps.
+6. **electron-store ESM landmine** — dep is listed but unused; either
+   delete it or migrate to dynamic `import()` so a future use doesn't
+   break the CJS main bundle.
+7. **Multi-pane resource-monitor UI** — backend aggregates across all
+   panes; ResourcePanel could optionally show a per-pane breakdown.
+8. **Apple/macOS port** — Squirrel publisher is Windows-only today.
 
 ## Project Structure
 
 ```
 claude-code-studio/
 ├── scripts/
-│   └── patch-node-pty.js          # Postinstall patches for Electron rebuild
+│   └── patch-node-pty.js
 ├── src/
 │   ├── main/
-│   │   ├── index.ts               # Electron main: window, IPC, lifecycle
-│   │   ├── pty-manager.ts         # node-pty spawn/write/resize/kill
-│   │   ├── resource-monitor.ts    # systeminformation polling + process tree
-│   │   └── compact-controller.ts  # Hook install/uninstall, state/config reading
-│   ├── preload/
-│   │   └── preload.ts             # contextBridge: terminal, resources, compact, window
+│   │   ├── index.ts                # window + IPC + lifecycle + service wiring
+│   │   ├── pty-manager.ts          # single-PTY (wrapped by PtyRegistry)
+│   │   ├── pty-registry.ts         # paneId-keyed PTY registry (Phase 7c)
+│   │   ├── resource-monitor.ts     # multi-PID aggregation
+│   │   ├── compact-controller.ts   # hook install/uninstall + state
+│   │   ├── git-service.ts          # local git ops (Phase 4)
+│   │   ├── github-service.ts       # Octokit wrapper (Phase 4)
+│   │   ├── lmm-service.ts          # LMM cycle store (Phase 4.5)
+│   │   ├── auth-service.ts         # local-stub + http auth (Phase 5)
+│   │   ├── cloud-sync.ts           # vault → GitHub (Phase 6)
+│   │   ├── snippets-service.ts     # CRUD snippets (Phase 7a)
+│   │   ├── notifications-service.ts# OS notifications (Phase 7a, extended)
+│   │   ├── updater-service.ts      # update-electron-app wrapper (Phase 7b)
+│   │   ├── session-service.ts      # layout persistence (Phase 7c)
+│   │   ├── hotkeys-service.ts      # rebindable chords (Phase 7d)
+│   │   ├── tray-service.ts         # tray icon + menu (Phase 7d)
+│   │   └── cost-service.ts         # token usage sampling (Phase 7e)
+│   ├── preload/preload.ts          # contextBridge surface (all services)
 │   ├── renderer/
-│   │   ├── App.tsx                # Root layout: TitleBar + Sidebar + Terminal + Panel
-│   │   ├── main.tsx               # React entry
-│   │   ├── index.html             # HTML shell
-│   │   ├── styles/globals.css     # Design tokens, animations, scrollbar
+│   │   ├── App.tsx                 # root layout + hotkey dispatch + palette
+│   │   ├── main.tsx, index.html
+│   │   ├── styles/globals.css
+│   │   ├── theme-presets.ts        # shared theme apply (Phase 7a)
+│   │   ├── hotkeys.ts              # chord parsing/build (Phase 7d)
 │   │   └── components/
-│   │       ├── layout/            # TitleBar, Sidebar, StatusBar
-│   │       ├── terminal/          # TerminalPanel (xterm.js)
-│   │       ├── resources/         # ResourcePanel, GaugeBar
-│   │       ├── compact/           # CompactPanel (toggle, stats, config)
-│   │       ├── commands/          # CommandsPanel, QuickCommands
-│   │       └── settings/          # SettingsPanel (accent color picker)
-│   ├── shared/
-│   │   ├── ipc-channels.ts        # All IPC channel constants
-│   │   └── types.ts               # ResourceSnapshot, CompactStatus, etc.
-│   └── declarations.d.ts          # Window.electronAPI, node-pty, CSS modules
+│   │       ├── layout/             # TitleBar, Sidebar (10 entries), StatusBar
+│   │       ├── terminal/           # TerminalPanel, SplitLayout (Phase 7c)
+│   │       ├── resources/          # ResourcePanel, GaugeBar
+│   │       ├── compact/            # CompactPanel
+│   │       ├── commands/           # CommandsPanel, QuickCommands
+│   │       ├── github/             # 8 sub-components (Phase 4)
+│   │       ├── lmm/                # LMMPanel (Phase 4.5)
+│   │       ├── auth/               # AuthPanel (Phase 5)
+│   │       ├── sync/               # SyncPanel, SyncWizard, VaultPreview (Phase 6)
+│   │       ├── palette/            # CommandPalette, SnippetEditor (Phase 7a)
+│   │       ├── cost/               # CostPanel (Phase 7e)
+│   │       └── settings/           # SettingsPanel (theme, notif, tray, hotkeys, updater)
+│   ├── shared/{ipc-channels,types}.ts
+│   └── declarations.d.ts
+├── journal/                        # Per-source-file LMM analyses (Phase 4)
+├── SECURITY_REVIEW.md              # Phase 4 review
+├── SECURITY_REVIEW_PHASE4_5.md     # Phase 4.5 review
+├── SECURITY_REVIEW_PHASE5.md       # Phase 5 review
+├── SECURITY_REVIEW_PHASE6.md       # Phase 6 review
+├── SECURITY_REVIEW_PHASE7A.md      # Phase 7a review
+├── SECURITY_REVIEW_PHASE7B.md      # Phase 7b review
+├── SECURITY_REVIEW_PHASE7C.md      # Phase 7c review
+├── SECURITY_REVIEW_PHASE7D.md      # Phase 7d review
+├── SECURITY_REVIEW_PHASE7E.md      # Phase 7e review
+├── SECURITY_REVIEW_PHASE7_INTEGRATED.md  # cross-feature review
 ├── forge.config.ts
-├── vite.main.config.ts            # Externals: node-pty, electron-store, systeminformation
-├── vite.renderer.config.ts        # root: src/renderer, React plugin
-├── vite.preload.config.ts
+├── vite.{main,renderer,preload}.config.ts
 ├── tsconfig.json
 └── package.json
 ```
@@ -148,17 +216,41 @@ git clone https://github.com/LxveAce/claude-code-studio.git
 cd claude-code-studio
 npm install
 
-# Install VS Build Tools 2022 (C++ workload) if not present
-# Install Windows 10 SDK (10.0.22621) if not present
+# Required Windows toolchain (for the node-pty native build):
+# - VS Build Tools 2022 with the C++ workload
+# - Windows 10/11 SDK (10.0.22621 or newer)
 
 node scripts/patch-node-pty.js
 npx electron-rebuild -m . --only node-pty
 
-npm start
+npm start                # dev (Vite + Electron)
+npm run package          # smoke-test build
+npm run make             # NSIS/Squirrel installer (Phase 7b)
+npm run publish          # publish to GitHub Releases (draft, Phase 7b)
 ```
 
 ## GitHub Repo
 https://github.com/LxveAce/claude-code-studio
 
-## Plan File
-Full 7-phase plan: `C:\Users\mmrla\.claude\plans\agile-painting-quill.md`
+## Branch Layout
+- `master` — original Phase 1–3 base
+- `phase-4-github-integration` — Phase 4 PR
+- `phase-4.5-lmm-panel`        — Phase 4.5 PR
+- `phase-5-auth`               — Phase 5 PR
+- `phase-6-vault-sync`         — Phase 6 PR
+- `phase-7a-palette-snippets-notifications` — Phase 7a PR
+- `phase-7b-auto-updater`, `-7c-split-panes-session`,
+  `-7d-tray-hotkeys`, `-7e-cost-tracker` — individual sub-feature PRs
+- **`phase-7-integrated`** — recommended merge target: all of 7b–e
+  merged on top of 7a, plus a cross-feature red-team pass
+
+## Workflow Conventions
+- LMM applied as a thinking discipline on non-trivial work (see
+  `journal/` for per-file analyses).
+- Red-team + remediate after each phase before commit. Every phase has
+  a self-review at `SECURITY_REVIEW_*.md` listing the Criticals + Highs
+  fixed in the same commit set, with Mediums explicitly deferred as
+  documented tech debt.
+- Worktree-isolated agents per phase (see Phase 7b–e). Integration
+  happens in a `phase-N-integrated` branch with a final cross-feature
+  review.

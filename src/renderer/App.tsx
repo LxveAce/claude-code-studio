@@ -271,10 +271,25 @@ export function App() {
 
   // Global hotkey dispatcher. Runs at window level so xterm's keystrokes
   // also flow through here; we preventDefault on a match.
+  //
+  // Cold-start fallback (integration-review M1): until the async
+  // hotkeys.get() resolves, `bindings` is `[]` and the chord map is
+  // empty — meaning the palette can't be opened by keyboard during the
+  // first ~50ms. We hardcode Ctrl/Cmd+Shift+P as a non-rebindable
+  // fallback that's always live, so the user is never locked out of
+  // the palette regardless of bindings state.
   useEffect(() => {
     const chordMap = buildChordMap(bindings);
-    if (chordMap.size === 0) return;
     const handler = (e: KeyboardEvent) => {
+      // Hardcoded fallback: Ctrl/Cmd+Shift+P always opens the palette.
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+        e.preventDefault();
+        e.stopPropagation();
+        dispatchAction('palette.open');
+        return;
+      }
+      if (chordMap.size === 0) return;
       const chord = chordFromEvent(e);
       if (!chord) return;
       const action = chordMap.get(chord);
