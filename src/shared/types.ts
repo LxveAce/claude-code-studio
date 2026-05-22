@@ -118,6 +118,33 @@ export interface GitHubAuthState {
   encrypted: boolean;
 }
 
+export type LMMPhase = 'raw' | 'nodes' | 'reflect' | 'synth';
+export type LMMVariant = 'quick' | 'deep';
+
+export interface LMMSettings {
+  enabled: boolean;
+  journalDir: string;
+  variant: LMMVariant;
+}
+
+export interface LMMCycleSummary {
+  id: string;
+  title: string;
+  created: string;
+  modified: string;
+  currentPhase: LMMPhase;
+  filledPhases: LMMPhase[];
+}
+
+export interface LMMCycle extends LMMCycleSummary {
+  phases: {
+    raw: string;
+    nodes: string;
+    reflect: string;
+    synth: string;
+  };
+}
+
 // The full ElectronAPI shape lives in src/declarations.d.ts as an ambient
 // Window typing. Don't redeclare it here — keep this file for serializable
 // IPC payload types only.

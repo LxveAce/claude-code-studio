@@ -71,6 +71,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ) => ipcRenderer.invoke(IPC.GITHUB_ISSUES, owner, repo, state),
     openExternal: (url: string) => ipcRenderer.invoke(IPC.GITHUB_OPEN_EXTERNAL, url),
   },
+  lmm: {
+    getSettings: () => ipcRenderer.invoke(IPC.LMM_GET_SETTINGS),
+    setSettings: (partial: unknown) => ipcRenderer.invoke(IPC.LMM_SET_SETTINGS, partial),
+    listCycles: () => ipcRenderer.invoke(IPC.LMM_LIST_CYCLES),
+    getCycle: (id: string) => ipcRenderer.invoke(IPC.LMM_GET_CYCLE, id),
+    createCycle: (title: string) => ipcRenderer.invoke(IPC.LMM_CREATE_CYCLE, title),
+    savePhase: (id: string, phase: 'raw' | 'nodes' | 'reflect' | 'synth', content: string) =>
+      ipcRenderer.invoke(IPC.LMM_SAVE_PHASE, id, phase, content),
+    deleteCycle: (id: string) => ipcRenderer.invoke(IPC.LMM_DELETE_CYCLE, id),
+    pickJournalDir: () => ipcRenderer.invoke(IPC.LMM_PICK_JOURNAL_DIR),
+  },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     maximize: () => ipcRenderer.send('window:maximize'),

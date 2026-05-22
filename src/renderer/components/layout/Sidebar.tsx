@@ -50,6 +50,16 @@ const panels: { id: SidebarPanel; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
+    id: 'lmm',
+    label: 'LMM',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 12s3-8 10-8 10 8 10 8-3 8-10 8S2 12 2 12z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
+  },
+  {
     id: 'github',
     label: 'GitHub',
     icon: (
@@ -103,7 +113,7 @@ export function Sidebar({ activePanel, onPanelChange }: SidebarProps) {
       gap: 4,
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-        {panels.slice(0, 5).map((panel) => (
+        {panels.slice(0, 6).map((panel) => (
           <SidebarButton
             key={panel.id}
             icon={panel.icon}
@@ -122,7 +132,7 @@ export function Sidebar({ activePanel, onPanelChange }: SidebarProps) {
       }} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {panels.slice(5).map((panel) => (
+        {panels.slice(6).map((panel) => (
           <SidebarButton
             key={panel.id}
             icon={panel.icon}

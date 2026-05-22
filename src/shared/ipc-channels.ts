@@ -39,4 +39,13 @@ export const IPC = {
   SYNC_PUSH: 'sync:push',
   SYNC_PULL: 'sync:pull',
   SYNC_STATUS: 'sync:status',
+
+  LMM_GET_SETTINGS: 'lmm:get-settings',
+  LMM_SET_SETTINGS: 'lmm:set-settings',
+  LMM_LIST_CYCLES: 'lmm:list-cycles',
+  LMM_GET_CYCLE: 'lmm:get-cycle',
+  LMM_CREATE_CYCLE: 'lmm:create-cycle',
+  LMM_SAVE_PHASE: 'lmm:save-phase',
+  LMM_DELETE_CYCLE: 'lmm:delete-cycle',
+  LMM_PICK_JOURNAL_DIR: 'lmm:pick-journal-dir',
 } as const;

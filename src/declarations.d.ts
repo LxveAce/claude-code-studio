@@ -105,6 +105,22 @@ interface Window {
       ) => Promise<import('./shared/types').GitHubIssue[]>;
       openExternal: (url: string) => Promise<boolean>;
     };
+    lmm: {
+      getSettings: () => Promise<import('./shared/types').LMMSettings>;
+      setSettings: (
+        partial: Partial<import('./shared/types').LMMSettings>
+      ) => Promise<import('./shared/types').LMMSettings>;
+      listCycles: () => Promise<import('./shared/types').LMMCycleSummary[]>;
+      getCycle: (id: string) => Promise<import('./shared/types').LMMCycle | null>;
+      createCycle: (title: string) => Promise<import('./shared/types').LMMCycle>;
+      savePhase: (
+        id: string,
+        phase: import('./shared/types').LMMPhase,
+        content: string
+      ) => Promise<import('./shared/types').LMMCycle>;
+      deleteCycle: (id: string) => Promise<boolean>;
+      pickJournalDir: () => Promise<import('./shared/types').LMMSettings | null>;
+    };
     window: {
       minimize: () => void;
       maximize: () => void;

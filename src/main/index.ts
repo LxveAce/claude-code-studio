@@ -5,6 +5,7 @@ import { ResourceMonitor } from './resource-monitor';
 import { CompactController } from './compact-controller';
 import { GitService } from './git-service';
 import { GitHubService } from './github-service';
+import { LMMService } from './lmm-service';
 import { IPC } from '../shared/ipc-channels';
 
 if (require('electron-squirrel-startup')) {
@@ -20,10 +21,16 @@ const resourceMonitor = new ResourceMonitor();
 const compactController = new CompactController();
 const gitService = new GitService();
 let githubService: GitHubService | null = null;
+let lmmService: LMMService | null = null;
 
 function getGitHub(): GitHubService {
   if (!githubService) githubService = new GitHubService();
   return githubService;
+}
+
+function getLMM(): LMMService {
+  if (!lmmService) lmmService = new LMMService();
+  return lmmService;
 }
 
 const createWindow = () => {
@@ -186,6 +193,36 @@ function setupGitHub() {
   });
 }
 
+function setupLMM() {
+  ipcMain.handle(IPC.LMM_GET_SETTINGS, () => getLMM().getSettings());
+  ipcMain.handle(IPC.LMM_SET_SETTINGS, (_event, partial) =>
+    getLMM().setSettings(partial)
+  );
+  ipcMain.handle(IPC.LMM_LIST_CYCLES, () => getLMM().listCycles());
+  ipcMain.handle(IPC.LMM_GET_CYCLE, (_event, id: string) => getLMM().getCycle(id));
+  ipcMain.handle(IPC.LMM_CREATE_CYCLE, (_event, title: string) =>
+    getLMM().createCycle(title)
+  );
+  ipcMain.handle(
+    IPC.LMM_SAVE_PHASE,
+    (_event, id: string, phase: 'raw' | 'nodes' | 'reflect' | 'synth', content: string) =>
+      getLMM().savePhase(id, phase, content)
+  );
+  ipcMain.handle(IPC.LMM_DELETE_CYCLE, (_event, id: string) =>
+    getLMM().deleteCycle(id)
+  );
+  ipcMain.handle(IPC.LMM_PICK_JOURNAL_DIR, async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Pick journal directory',
+      properties: ['openDirectory', 'createDirectory'],
+      defaultPath: getLMM().getSettings().journalDir,
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return getLMM().pickJournalDir(result.filePaths[0]);
+  });
+}
+
 function setupWindowControls() {
   ipcMain.on('window:minimize', () => mainWindow?.minimize());
   ipcMain.on('window:maximize', () => {
@@ -223,6 +260,7 @@ app.whenReady().then(() => {
   setupCompact();
   setupGit();
   setupGitHub();
+  setupLMM();
   setupWindowControls();
 
   app.on('activate', () => {

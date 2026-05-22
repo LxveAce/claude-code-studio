@@ -8,6 +8,7 @@ import { CompactPanel } from './components/compact/CompactPanel';
 import { CommandsPanel } from './components/commands/CommandsPanel';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { GitHubPanel } from './components/github/GitHubPanel';
+import { LMMPanel } from './components/lmm/LMMPanel';
 
 export type SidebarPanel =
   | 'terminal'
@@ -15,6 +16,7 @@ export type SidebarPanel =
   | 'resources'
   | 'github'
   | 'compact'
+  | 'lmm'
   | 'sync'
   | 'auth'
   | 'settings';
@@ -105,6 +107,8 @@ function RightPanel({
       return <SettingsPanel />;
     case 'github':
       return <GitHubPanel />;
+    case 'lmm':
+      return <LMMPanel />;
     default:
       return <PlaceholderPanel panel={panel} />;
   }
