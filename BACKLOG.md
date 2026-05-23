@@ -143,6 +143,23 @@ disabled-on-Linux for the tray feature.
 ### Terminal resize loop when sidebar narrows the window
 **Reported**: 2026-05-22 (user, post-v1.0 install)
 **Severity**: Medium (cosmetic flicker; doesn't crash)
+**Status**: 2026-05-23 — MOVED TO PR on branch `fix/terminal-resize-loop`.
+Two distinct flicker mechanisms found and fixed in `TerminalPanel.tsx`:
+  1. *Self-sustaining loop* — `fit()`+resize-IPC ran on every
+     ResizeObserver tick. Now gated behind a `proposeDimensions()`
+     equality check (`fitIfChanged()`): a converged grid is a no-op, so
+     the fit→ResizeObserver→fit feedback can't sustain.
+  2. *Panel-open ratchet* (the one the user actually saw) — the pane
+     flex containers lacked `min-width: 0`, so their default
+     `min-width: auto` kept them as wide as the old xterm content when a
+     320px panel opened. The container only caught up one column per
+     fit(), crawling to the right size over ~1.5s. Adding
+     `minWidth/minHeight: 0` lets the box shrink to its allotted size in
+     the same layout pass, so xterm fits once and settles.
+Verified on Linux (real app via CDP): panel-open now settles the grid in
+one ~66ms step (was 30+ steps over 1.6s); forced 90px squeeze settles to
+a single stable width. NOTE: original report was a Windows install —
+re-confirm there before closing the issue.
 
 **Symptom:** With a sidebar panel open (Resources / Compact / GitHub
 / etc.) AND the window shrunk such that the terminal area is narrower

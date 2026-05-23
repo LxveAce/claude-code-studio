@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -31,6 +31,39 @@ export function TerminalPanel({
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const [exited, setExited] = useState(false);
+
+  // Fit the terminal to its container, but ONLY when the proposed cell grid
+  // actually differs from the live one. Calling fit()+resize() unconditionally
+  // is what drives the resize-loop flicker (BACKLOG #3): fit() mutates the DOM
+  // (canvas/viewport sizing, scrollbar), the ResizeObserver sees that mutation
+  // and fires handleResize again, which fits again… forever. Comparing the
+  // *proposed* dims (what fit() WOULD do) against the current ones lets us
+  // no-op once converged — which also stops the IPC echo to the backend PTY.
+  const fitIfChanged = useCallback(() => {
+    const fit = fitRef.current;
+    const term = termRef.current;
+    if (!fit || !term) return;
+    let dims: ReturnType<FitAddon['proposeDimensions']>;
+    try {
+      dims = fit.proposeDimensions();
+    } catch {
+      return; // terminal not attached / disposed
+    }
+    if (
+      !dims ||
+      !Number.isFinite(dims.cols) ||
+      !Number.isFinite(dims.rows) ||
+      dims.cols < 1 ||
+      dims.rows < 1
+    ) {
+      return;
+    }
+    // Already the right size → skip the fit() (no DOM mutation) AND the IPC
+    // resize. This is the line that actually breaks the loop.
+    if (dims.cols === term.cols && dims.rows === term.rows) return;
+    fit.fit();
+    window.electronAPI.terminal.resize(paneId, term.cols, term.rows);
+  }, [paneId]);
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -105,22 +138,28 @@ export function TerminalPanel({
     let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
     const handleResize = () => {
       if (resizeTimeout) clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        try {
-          fit.fit();
-          window.electronAPI.terminal.resize(paneId, term.cols, term.rows);
-        } catch {
-          // terminal may be disposed
-        }
-      }, 50);
+      resizeTimeout = setTimeout(fitIfChanged, 50);
     };
 
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(terminalRef.current);
 
+    // One-time initial sync once the container has settled (post-spawn).
+    // ALWAYS push the result to the backend PTY so it matches the xterm grid:
+    // the on-open fit() above already set term.cols/rows, so the equality guard
+    // in fitIfChanged() would skip this IPC and leave the PTY stuck at its
+    // spawn-default size. This fires exactly once and is not part of the resize
+    // feedback loop, so bypassing the guard here is safe.
     const initialFitTimer = setTimeout(() => {
-      fit.fit();
-      window.electronAPI.terminal.resize(paneId, term.cols, term.rows);
+      const t = termRef.current;
+      const f = fitRef.current;
+      if (!t || !f) return;
+      try {
+        f.fit();
+        window.electronAPI.terminal.resize(paneId, t.cols, t.rows);
+      } catch {
+        // terminal may be disposed
+      }
     }, 150);
 
     // Spawn the PTY *after* listeners are attached so we never miss the first
@@ -157,20 +196,9 @@ export function TerminalPanel({
   // hidden panes; xterm needs a manual fit after the size changes).
   useEffect(() => {
     if (!active) return;
-    const t = setTimeout(() => {
-      try {
-        fitRef.current?.fit();
-        const cols = termRef.current?.cols ?? 0;
-        const rows = termRef.current?.rows ?? 0;
-        if (cols > 0 && rows > 0) {
-          window.electronAPI.terminal.resize(paneId, cols, rows);
-        }
-      } catch {
-        // disposed
-      }
-    }, 80);
+    const t = setTimeout(fitIfChanged, 80);
     return () => clearTimeout(t);
-  }, [active, paneId]);
+  }, [active, paneId, fitIfChanged]);
 
   // Press-any-key restart after an exit message.
   useEffect(() => {
@@ -195,6 +223,15 @@ export function TerminalPanel({
         flexDirection: 'column',
         height: '100%',
         position: 'relative',
+        // minWidth/minHeight: 0 override the flexbox default of `auto`, which
+        // would otherwise size this item to its content's min-size. Without it,
+        // when a 320px panel opens (or a split shrinks a pane) the parent flex
+        // track resizes instantly but THIS box stays as wide as the old xterm
+        // content and only catches up one column per fit() — the panel-open
+        // resize-ratchet flicker. With it, the box shrinks to its allotted size
+        // in the same layout pass, so xterm fits once and settles.
+        minWidth: 0,
+        minHeight: 0,
         outline: active ? '1px solid var(--accent)' : '1px solid transparent',
         outlineOffset: -1,
         transition: 'outline-color var(--transition-fast)',
@@ -204,6 +241,8 @@ export function TerminalPanel({
         ref={terminalRef}
         style={{
           flex: 1,
+          minWidth: 0,
+          minHeight: 0,
           padding: '6px 2px 2px 6px',
           backgroundColor: 'var(--bg-primary)',
           overflow: 'hidden',
