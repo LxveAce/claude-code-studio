@@ -193,6 +193,49 @@ between two sizes.
 4. As the terminal area gets narrower than a certain threshold, the
    flash/loop starts
 
+### Resource Monitor shows "Claude NaN%" / "NaN MB" (Linux)
+**Reported**: 2026-05-23 (Linux dev verification)
+**Severity**: Low (cosmetic; Linux is dev-only today — the shipped
+Windows build may be unaffected, see below)
+
+**Symptom:** In the Resource Monitor panel, the *Claude* memory readout
+shows "Claude NaN%" and the "Claude Memory" card shows "NaN MB". Claude
+CPU reads fine (0%+), and the System CPU/RAM gauges are correct — only
+the per-process Claude *memory* is NaN. "Claude Processes: 1" is correct,
+so the process IS being found; the value is just missing.
+
+**Likely root cause:** In `src/main/resource-monitor.ts`, the per-process
+RAM is summed as `claudeRam += proc.mem_rss`. On Linux,
+`systeminformation`'s `si.processes().list[].mem_rss` comes back
+`undefined` for the matched process, so `claudeRam` becomes
+`0 + undefined = NaN`, which then propagates into both `ramPercent` and
+`ramMB` in the emitted snapshot. CPU is unaffected because `proc.cpu` is
+populated. On Windows the field is presumably populated, so the shipped
+build likely looks correct — **needs confirmation on Windows.**
+
+**Where to look:**
+- `src/main/resource-monitor.ts:73` — `claudeRam += proc.mem_rss`
+- `src/main/resource-monitor.ts:100-101` — `ramPercent` / `ramMB` derive
+  from `claudeRam`, so a single NaN poisons both
+- `getProcessTree()` (same file) — its element type declares
+  `mem_rss: number`, but the runtime value can be `undefined` on Linux
+
+**Fix ideas:**
+- Coalesce at the source: `claudeRam += proc.mem_rss || 0` (and similarly
+  guard `proc.cpu`). Cheapest fix; kills the NaN regardless of platform.
+- Guard the snapshot: if `claudeRam` isn't finite, surface `0` / "—"
+  rather than letting `NaN` reach the UI.
+- **Verify the units while you're in there.** `ramMB` divides by
+  `1024 * 1024` (assumes bytes), but `systeminformation` documents
+  `mem_rss` in KB on some platforms/versions — if so the MB figure is off
+  by ~1024× even once it's no longer NaN. Confirm per-platform before
+  trusting the number.
+
+**Reproduction steps:**
+1. Run the app on Linux (`electron-forge start`)
+2. Let a Claude pane spawn, then open the Resources panel
+3. Claude memory row shows "NaN%"; "Claude Memory" card shows "NaN MB"
+
 ---
 
 ## How to use this file
