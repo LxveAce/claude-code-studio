@@ -9,6 +9,38 @@ and settings. Auto-updater, system tray, command palette, snippets,
 notifications, and rebindable hotkeys are wired in. Each phase carries
 its own self-red-team review at the repo root (`SECURITY_REVIEW_*.md`).
 
+## Post-v1.0 Fixes & Polish (2026-05-23)
+
+### Terminal resize-loop flicker — FIXED (BACKLOG #3)
+The terminal could flicker/resize when a sidebar panel opened or the
+window narrowed. Two distinct mechanisms in `TerminalPanel.tsx`:
+- *Self-sustaining fit loop* — every ResizeObserver tick called
+  `fit()`+resize-IPC; `fit()` mutates the DOM, which re-triggers the
+  observer, ad infinitum. Now gated behind a `proposeDimensions()`
+  equality check (`fitIfChanged()`): a converged grid is a no-op, so the
+  loop can't sustain.
+- *Panel-open ratchet* (the user-visible flicker) — the pane flex
+  containers lacked `min-width: 0`, so their default `min-width: auto`
+  kept them as wide as the old xterm content when a 320px panel claimed
+  its space; the box then caught up only one column per fit, crawling to
+  the right width over ~1.5 s. Adding `minWidth/minHeight: 0` lets it
+  shrink to its allotted size in the same layout pass.
+
+### Smooth panel-open animation — ADDED
+Panel open now animates the layout **width first** (terminal smoothly
+resizes into the opening space) and **then fades the panel in**, via a
+`panelEnter` keyframe (width 0→320 over the first ~55%, opacity after).
+The right panel is split into an animated clipping wrapper + a fixed
+320px scrollable inner. Terminal resize debounce dropped 50→16 ms so the
+grid reflows smoothly with the animation (safe now that the ratchet is
+gone and `fitIfChanged()` no-ops once converged).
+
+Verified on Linux by driving the running app over CDP: panel-open settles
+the grid in one ~66 ms step (was 30+ steps crawling over 1.6 s); a forced
+90px squeeze settles to a single stable width; zero console errors.
+NOTE: the original flicker was reported on a Windows install — re-confirm
+there before closing the issue.
+
 ## What's Working
 
 ### Phase 1: Shell + Terminal (COMPLETE)
@@ -304,6 +336,8 @@ https://github.com/LxveAce/claude-code-studio
   `-7d-tray-hotkeys`, `-7e-cost-tracker` — individual sub-feature PRs
 - **`phase-7-integrated`** — recommended merge target: all of 7b–e
   merged on top of 7a, plus a cross-feature red-team pass
+- `explore/smooth-panel-resize` — post-v1.0: terminal resize-loop fix
+  (BACKLOG #3) + smooth panel-open animation. Open PR.
 
 ## Workflow Conventions
 - LMM applied as a thinking discipline on non-trivial work (see
