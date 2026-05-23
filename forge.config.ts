@@ -26,24 +26,13 @@ const config: ForgeConfig = {
         'Full desktop GUI for Claude Code with resource monitoring and cloud sync',
       // --- Branding hooks (uncomment + provide assets to enable) -----------
       // setupIcon: './assets/installer.ico',
-      //   Path to a multi-resolution .ico (16/32/48/256). NSIS-style installer
-      //   icon; falls back to Electron default if omitted.
       // loadingGif: './assets/loading.gif',
-      //   Animated GIF shown during install (recommended 640x480, <2MB).
-      //   Adds polish; cosmetic only.
       // iconUrl:
       //   'https://raw.githubusercontent.com/LxveAce/claude-code-studio/master/assets/app-icon.ico',
-      //   Public HTTPS URL Squirrel fetches at first install for the
-      //   Programs & Features icon. MUST be public; CDN-hosted is fine.
       // --- Code signing (Windows) ------------------------------------------
       // certificateFile: process.env.WINDOWS_CERT_PATH,
       // certificatePassword: process.env.WINDOWS_CERT_PASSWORD,
-      //   Required for SmartScreen reputation. Use an EV or OV cert.
-      //   Without signing: first-run installer triggers SmartScreen warning,
-      //   but auto-update still functions (Squirrel does NOT require signing
-      //   to apply update deltas, unlike macOS).
       // signWithParams: '/tr http://timestamp.digicert.com /td sha256 /fd sha256',
-      //   Timestamping is required so signatures survive cert expiry.
     }),
     new MakerZIP({}, ['darwin']),
   ],

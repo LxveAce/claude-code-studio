@@ -243,6 +243,32 @@ npm run make             # NSIS/Squirrel installer (Phase 7b)
 npm run publish          # publish to GitHub Releases (draft, Phase 7b)
 ```
 
+### Node version requirement
+
+**Use Node 22 LTS.** `package.json` pins `engines.node: ">=22.0.0 <24.0.0"`.
+
+Node 24 LTS has an undiagnosed incompatibility with `electron-packager`
+(verified against both `18.4.4` shipped with forge 7 and `20.0.0` shipped
+with forge 8-alpha): the packager's async extraction promise drops off
+the event loop within ~30ms of starting, the process exits 0, and no
+artifact is written. Node 22.12.0 LTS works end-to-end and produces the
+Squirrel installer.
+
+If you have Node 24 installed system-wide, the fastest workaround is to
+download the Node 22 binary side-by-side and use it for the build:
+
+```powershell
+# one-time setup (no installer, fully reversible — just a folder)
+Invoke-WebRequest 'https://nodejs.org/dist/v22.12.0/node-v22.12.0-win-x64.zip' `
+  -OutFile "$env:TEMP\node22.zip"
+Expand-Archive "$env:TEMP\node22.zip" 'C:\Users\<you>\nodejs-22'
+
+# then for any build command
+$env:PATH = 'C:\Users\<you>\nodejs-22\nodejs-22;' + $env:PATH
+npm install   # native modules rebuild against Node 22's ABI
+npm run make
+```
+
 ## GitHub Repo
 https://github.com/LxveAce/claude-code-studio
 

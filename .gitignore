@@ -2,3 +2,5 @@ node_modules/
 .vite/
 out/
 .claude/worktrees/
+out/
+src/renderer/dist/
