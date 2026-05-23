@@ -180,6 +180,23 @@ const createWindow = () => {
     mainWindow = null;
   });
 
+  // DevTools keybind — available in BOTH dev and packaged builds. The
+  // packaged build has no other way for the user to surface renderer
+  // errors (the `EnableNodeOptionsEnvironmentVariable: false` fuse means
+  // they can't set NODE_ENV=development to enable the existing auto-open
+  // path), and "blank window with no clue why" is the worst diagnostic
+  // experience. F12 / Ctrl+Shift+I / Cmd+Opt+I all toggle.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const isF12 = input.key === 'F12';
+    const isCtrlShiftI =
+      (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i';
+    if (isF12 || isCtrlShiftI) {
+      mainWindow?.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
+
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
@@ -571,6 +588,15 @@ app.on('web-contents-created', (_event, contents) => {
 });
 
 app.whenReady().then(() => {
+  // Windows toast notifications require an AppUserModelID that matches
+  // the installer's registered AUMID. Squirrel sets one based on the
+  // executable's metadata, but explicitly calling setAppUserModelId
+  // ensures Notification.show() is correctly attributed and not
+  // silently dropped by the OS Action Center.
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.squirrel.claude_code_studio.claude-code-studio');
+  }
+
   createWindow();
   setupTerminal();
   setupResources();

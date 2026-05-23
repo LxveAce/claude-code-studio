@@ -9,11 +9,41 @@ import { PublisherGithub } from '@electron-forge/publisher-github';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    asar: {
+      // Unpack node-pty's full directory tree from the asar. The
+      // auto-unpack-natives plugin only handles `*.node` files, but
+      // node-pty on Windows ALSO needs to LoadLibraryW its sibling
+      // `winpty.dll`, `winpty-agent.exe`, `conpty.dll`, and
+      // `OpenConsole.exe` — those have to live on disk, not inside
+      // the asar archive. Without this, terminals silently fail to
+      // spawn after install (pty.node loads but its dependent DLLs
+      // can't be located).
+      unpack: '**/node_modules/node-pty/**',
+    },
     name: 'Claude Code Studio',
     // executableName must match what auto-update expects post-install.
     // Squirrel uses the productName for the install dir; this controls the .exe.
     executableName: 'claude-code-studio',
+    // Override the plugin-vite default ignore (which excludes everything
+    // outside `.vite/`). We need our two Vite externals — `node-pty` and
+    // `systeminformation` — on disk because they're declared as external
+    // in `vite.main.config.ts` and the bundled main process emits bare
+    // `require()` calls for them.
+    //
+    // We include the whole `/node_modules` tree; electron-packager's
+    // `prune: true` (default) strips devDependencies after copy, so the
+    // final asar only carries production deps. This is more permissive
+    // than the official forge template's "bundle everything via Vite"
+    // approach but is correct for our native-module use case.
+    ignore: (file: string | undefined): boolean => {
+      if (!file) return false;
+      // file always starts with '/'
+      if (file === '/.vite' || file.startsWith('/.vite/')) return false;
+      if (file === '/package.json') return false;
+      if (file === '/node_modules' || file.startsWith('/node_modules/')) return false;
+      // Exclude everything else: src/, configs, .git/, out/, journals, etc.
+      return true;
+    },
   },
   rebuildConfig: {},
   makers: [
