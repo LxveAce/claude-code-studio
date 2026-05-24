@@ -295,9 +295,23 @@ export class CliService {
       '@anthropic-ai/claude-code',
     ];
 
+    // npm lifecycle scripts of @anthropic-ai/claude-code (or its
+    // transitive deps) may shell out to `node` / `npm` / `node-gyp` as
+    // bare commands, expecting them on PATH. If PATH points at a
+    // different system Node — or has no Node at all — those subprocess
+    // spawns crash with "node: command not found", failing the install
+    // late and confusingly. Prepend our bundled bin dir so subprocesses
+    // resolve to the same Node we're driving.
+    const bundledBinDir =
+      process.platform === 'win32' ? runtimeDir : path.join(runtimeDir, 'bin');
+    const childEnv = {
+      ...process.env,
+      PATH: `${bundledBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    };
+
     return new Promise((resolve) => {
       const collected: string[] = [];
-      const child = spawn(nodeBin, args, { windowsHide: true });
+      const child = spawn(nodeBin, args, { windowsHide: true, env: childEnv });
       let buffer = '';
 
       const flushLines = (chunk: string) => {

@@ -82,6 +82,14 @@ jobs:
       - name: Install
         run: npm install --no-audit --no-fund
 
+      - name: Install Linux build deps (rpm + libfuse2 for AppImage)
+        # ubuntu-latest doesn't ship `rpm` and electron-builder needs it
+        # for the .rpm target. libfuse2 is needed for the AppImage runtime.
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm libfuse2
+
       - name: Enable Windows Developer Mode
         # Windows-only workaround for electron-builder's winCodeSign
         # cache extraction (creates macOS dylib symlinks via bundled

@@ -40,6 +40,26 @@ Node 24 for other projects, swap with one of:
   $env:PATH = "$env:USERPROFILE\nodejs-22\node-v22.22.3-win-x64;$env:PATH"
   ```
 
+### Linux build host (for `npm run dist:linux`)
+
+Producing the full set of Linux installers (AppImage + .deb + .rpm)
+needs a few system packages on the build host (or CI runner):
+
+- **`libfuse2`** — AppImage's squashfs runtime uses FUSE.
+  ```bash
+  sudo apt install libfuse2
+  ```
+- **`rpm`** — to build the .rpm package on a non-Fedora host (Ubuntu
+  build hosts don't ship rpm by default).
+  ```bash
+  sudo apt install rpm
+  ```
+- `dpkg-deb` for .deb — preinstalled on Debian/Ubuntu.
+
+GitHub Actions `ubuntu-latest` has `libfuse2` installed by default;
+`rpm` is installed via the CI workflow if needed (or skip the rpm
+target there).
+
 ### Windows Developer Mode (for `npm run dist`)
 
 The v1.1 NSIS installer build (`npm run dist`) needs **Windows Developer

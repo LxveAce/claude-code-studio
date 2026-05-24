@@ -1,28 +1,33 @@
-# Migrating from v1.0 to v1.1
+# Migrating from v1.0 to v2.0
 
-v1.1 changes the installer format (Squirrel → NSIS) and introduces a
-bootstrap installer that includes Node + the Claude Code CLI. **Existing
-v1.0 users must uninstall once before installing v1.1.** This is a one-time
-tax; v1.1 → v1.1.x → v1.2 → … all use the new NSIS auto-updater going
-forward.
+v2.0 changes the installer format (Windows: Squirrel → NSIS; new
+macOS DMG + Linux AppImage/deb/rpm) and introduces a one-click
+installer that bundles Node + the Claude Code CLI. **Existing v1.0
+Windows users must uninstall once before installing v2.0.** This is a
+one-time tax; v2.0 → v2.0.x → v2.1 → … all use the new auto-updater
+going forward.
 
-This document covers the upgrade path. v1.1 is currently **in development**;
-this doc will become accurate once v1.1.0 ships.
+> v2.0 is currently **in development**; this doc becomes accurate once
+> v2.0.0 ships.
 
-## Why the manual reinstall
+## Why the manual reinstall (Windows users)
 
 Squirrel and NSIS use fundamentally different install layouts and update
 mechanisms:
 
 - **v1.0 (Squirrel)** installed to `%LocalAppData%\claude_code_studio\` with
   a `Update.exe` stub and versioned `app-1.0.0\` directory.
-- **v1.1 (NSIS)** installs to `%LocalAppData%\Programs\Claude Code Studio\`
-  with a flat layout and a separate Uninstall entry in Programs & Features.
+- **v2.0 (NSIS)** installs to `%LocalAppData%\Programs\Claude Code Studio\`
+  with a flat layout and a separate Uninstall entry in Programs &
+  Features.
 
-The two cannot auto-migrate to each other — they're different applications
-from Windows' perspective. Building a Squirrel→NSIS bridge updater is
-technically possible but expensive engineering for a one-time event, so
-we're documenting the manual path instead.
+The two cannot auto-migrate to each other — they're different
+applications from Windows' perspective. Building a Squirrel→NSIS bridge
+updater is technically possible but expensive engineering for a one-time
+event, so we're documenting the manual path instead.
+
+> **macOS and Linux users:** v1.0 was Windows-only. You have nothing to
+> migrate from — just install v2.0 fresh per the README.
 
 ## Step 1 — Back up your data (probably not needed, but)
 
@@ -56,10 +61,10 @@ Copy-Item "$env:APPDATA\Claude Code Studio" `
 > Remove-Item "$env:LOCALAPPDATA\claude_code_studio" -Recurse -Force
 > ```
 
-## Step 3 — Install v1.1
+## Step 3 — Install v2.0
 
-1. Download `Claude.Code.Studio-1.1.0-Setup.exe` from the
-   [v1.1.0 release](https://github.com/LxveAce/claude-code-studio/releases).
+1. Download `Claude.Code.Studio-2.0.0-Setup.exe` from the
+   [v2.0.0 release](https://github.com/LxveAce/claude-code-studio/releases).
 2. Double-click. The NSIS installer shows a real progress UI:
    - "Setting up Claude Code runtime..."
    - "Downloading Node.js (~30 MB)..."
@@ -67,14 +72,15 @@ Copy-Item "$env:APPDATA\Claude Code Studio" `
    - "Done."
 3. The app launches automatically once setup completes.
 
-**First-launch onboarding** (new in v1.1): if `claude login` hasn't been
-run yet, Studio detects this via `claude doctor` and offers a "Sign in to
-Claude" button that opens the browser-based OAuth flow. Click through it
-once and the prompt never shows again.
+**First-launch onboarding** (new in v2.0 on all platforms): if
+`claude login` hasn't been run yet, Studio detects this via
+`claude doctor` and offers a "Sign in to Claude" button that opens the
+browser-based OAuth flow. Click through it once and the prompt never
+shows again.
 
 ## Verifying the upgrade
 
-After v1.1 launches:
+After v2.0 launches:
 
 1. The embedded terminal should show `claude` running with no PATH setup.
 2. Your previous settings (theme, panel positions, GitHub PAT, snippets)
@@ -83,7 +89,7 @@ After v1.1 launches:
 4. If you used vault sync in v1.0, the sync repo connection should still
    work.
 
-## What if the v1.1 install fails
+## What if the v2.0 install fails
 
 The NSIS bootstrap can fail at four points:
 
@@ -92,7 +98,7 @@ The NSIS bootstrap can fail at four points:
 | Network blocked / offline | "Couldn't download Node.js" modal | Use the offline installer from the Releases page (Phase 4b — ships after the first feedback) |
 | SHA256 mismatch (network tampering) | "Failed integrity check" modal | Investigate your network; do NOT bypass. Likely a misconfigured corporate proxy. |
 | Zip extract failure (antivirus / disk full) | "Couldn't extract" modal | Free disk space; exempt the installer in AV |
-| npm install failure | Modal saying CLI must be installed manually | Studio still installs; open Settings → CLI → Install CLI (Phase 6 onboarding handles this) |
+| npm install failure | Modal saying CLI must be installed manually | Studio still installs; open Settings → Claude CLI → "Re-show CLI onboarding" → "Install Claude CLI" (the Phase 6 onboarding handles this) |
 
 All four failures write a full log to `%TEMP%\ccs-install.log` — include
 that in any bug report.
@@ -100,28 +106,35 @@ that in any bug report.
 ### Re-showing the first-launch onboarding modal
 
 If you clicked "Don't show again" on the first-launch onboarding and
-later need to recover (e.g., reinstall the CLI or sign in again), the
-modal won't reshow automatically — that's the persisted preference.
+later need to recover (e.g., reinstall the CLI or sign in again), use
+**Settings → Claude CLI → Re-show CLI onboarding**. Close + reopen the
+app and the modal will reshow if `claude doctor` reports missing or
+unauthenticated.
 
-Manual reset:
+Manual reset (any platform):
 
 ```powershell
+# Windows
 Remove-Item "$env:APPDATA\Claude Code Studio\cli-onboarding.json"
 ```
 
-Then restart Studio. The modal will reshow if `claude doctor` still
-reports missing or unauthenticated. (A SettingsPanel "Re-show CLI
-onboarding" entry is planned for a v1.1.x point release.)
+```bash
+# macOS
+rm "$HOME/Library/Application Support/Claude Code Studio/cli-onboarding.json"
+
+# Linux
+rm "$HOME/.config/Claude Code Studio/cli-onboarding.json"
+```
 
 ## Rolling back to v1.0
 
-Not recommended (v1.0 has known bugs the v1.1 path fixes), but possible:
+Not recommended (v1.0 has known bugs the v2.0 path fixes), but possible:
 
-1. Uninstall v1.1 via Settings → Apps → Installed apps.
+1. Uninstall v2.0 via Settings → Apps → Installed apps.
 2. Download v1.0 Setup.exe from the
    [v1.0.0 release](https://github.com/LxveAce/claude-code-studio/releases/tag/v1.0.0).
 3. Re-install Claude CLI manually:
    `npm install -g @anthropic-ai/claude-code`.
 
 Your data in `%AppData%\Claude Code Studio\` is forward-compatible — v1.0
-will read v1.1's settings file shape (we never broke the schema).
+will read v2.0's settings file shape (we never broke the schema).

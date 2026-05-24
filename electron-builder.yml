@@ -104,10 +104,10 @@ linux:
         - x64
   category: Development
   artifactName: "Claude.Code.Studio-${version}-${arch}.${ext}"
-  # MIME type so file managers offer "Open with Claude Code Studio" for
-  # the CLI's config files; not strictly required.
-  mimeTypes:
-    - x-scheme-handler/claude-code-studio
+  # No custom MIME types — the app doesn't register a URL scheme handler
+  # so claiming one in the .desktop file would just produce dead
+  # right-click entries in file managers. Add back if we ever wire a
+  # claude-code-studio:// protocol.
 
 nsis:
   # oneClick + perMachine:false matches the silent, per-user, auto-launch
