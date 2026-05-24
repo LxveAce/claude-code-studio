@@ -152,6 +152,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     checkNow: () => ipcRenderer.invoke(IPC.UPDATER_CHECK_NOW),
     onAvailable: (callback: (version: string) => void) =>
       subscribe<[string]>(IPC.UPDATER_AVAILABLE, callback),
+    onDownloadProgress: (callback: (percent: number) => void) =>
+      subscribe<[number]>(IPC.UPDATER_DOWNLOAD_PROGRESS, callback),
   },
   cost: {
     status: () => ipcRenderer.invoke(IPC.COST_STATUS),

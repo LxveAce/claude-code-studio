@@ -109,6 +109,11 @@ function getUpdater(): UpdaterService {
           }
           safeSend(IPC.UPDATER_AVAILABLE, version);
         },
+        onDownloadProgress: (percent: number) => {
+          // Stream to renderer for status-bar progress UI. Fire-and-forget;
+          // safeSend no-ops if the window is gone.
+          safeSend(IPC.UPDATER_DOWNLOAD_PROGRESS, percent);
+        },
         onError: (_msg: string) => {
           // Soft-fail: lastError is captured in updater state and surfaced via UI.
           // We intentionally do NOT fire an OS notification on every transient

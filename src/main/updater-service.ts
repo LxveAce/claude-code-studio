@@ -20,6 +20,8 @@ export interface UpdaterCallbacks {
   onUpdateDownloaded?: (version: string) => void;
   /** Called for any updater error (non-fatal — typical on first-run / no releases yet). */
   onError?: (message: string) => void;
+  /** Called with rounded download percent (0-100) during update download. */
+  onDownloadProgress?: (percent: number) => void;
 }
 
 /**
@@ -168,9 +170,17 @@ export class UpdaterService {
       autoUpdater.on('update-not-available', () => {
         // No-op for UI purposes; lastCheckedAt already updated.
       });
-      autoUpdater.on('download-progress', (_progress: unknown) => {
-        // Could surface progress in UI in a future polish pass; for v1.1
-        // we just keep the user-facing "Update vX.Y.Z ready" pattern.
+      autoUpdater.on('download-progress', (progress: unknown) => {
+        const raw = (progress as { percent?: number })?.percent;
+        if (typeof raw !== 'number' || !Number.isFinite(raw)) return;
+        // Round to integer to avoid spamming the renderer with 0.001%
+        // increments. The UI shows "Downloading update… 45%" granularity.
+        const rounded = Math.max(0, Math.min(100, Math.round(raw)));
+        try {
+          this.callbacks.onDownloadProgress?.(rounded);
+        } catch {
+          // never let UI bookkeeping crash the updater
+        }
       });
       autoUpdater.on('update-downloaded', (info: unknown) => {
         const version = (info as { version?: string })?.version;

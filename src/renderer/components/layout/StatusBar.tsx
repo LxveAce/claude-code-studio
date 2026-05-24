@@ -6,6 +6,10 @@ interface StatusBarProps {
 
 export function StatusBar({ pid }: StatusBarProps) {
   const [pendingVersion, setPendingVersion] = useState<string | null>(null);
+  // Phase 7 M4 — surface download-progress while electron-updater is pulling
+  // bits. Cleared back to null on update-downloaded (the ready badge takes
+  // over) or if the updater silently aborts.
+  const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -19,16 +23,20 @@ export function StatusBar({ pid }: StatusBarProps) {
         // updater may not be ready yet — ignore
       }
     })();
-    const unsub = window.electronAPI.updater.onAvailable((version) => {
-      if (!cancelled) setPendingVersion(version || 'new');
+    const unsubAvail = window.electronAPI.updater.onAvailable((version) => {
+      if (!cancelled) {
+        setPendingVersion(version || 'new');
+        // Download finished, clear the progress badge.
+        setDownloadPercent(null);
+      }
+    });
+    const unsubProgress = window.electronAPI.updater.onDownloadProgress((p) => {
+      if (!cancelled) setDownloadPercent(p);
     });
     return () => {
       cancelled = true;
-      try {
-        unsub();
-      } catch {
-        // ignore
-      }
+      try { unsubAvail(); } catch { /* ignore */ }
+      try { unsubProgress(); } catch { /* ignore */ }
     };
   }, []);
 
@@ -85,8 +93,33 @@ export function StatusBar({ pid }: StatusBarProps) {
             Update v{pendingVersion} ready
           </span>
         )}
+        {!pendingVersion && downloadPercent !== null && (
+          <span
+            title="Downloading update in the background"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '2px 8px',
+              borderRadius: 10,
+              background: 'var(--accent-dim)',
+              color: 'var(--accent-light)',
+              fontWeight: 500,
+              fontSize: 10,
+            }}
+          >
+            <span style={{
+              width: 5,
+              height: 5,
+              borderRadius: '50%',
+              background: 'var(--accent-light)',
+              animation: 'pulse 1.6s ease-in-out infinite',
+            }} />
+            Downloading update… {downloadPercent}%
+          </span>
+        )}
       </div>
-      <span>Claude Code Studio v1.0.0</span>
+      <span>Claude Code Studio v1.1.0-dev.1</span>
     </div>
   );
 }

@@ -76,6 +76,8 @@ export const IPC = {
   UPDATER_SET_SETTINGS: 'updater:set-settings',
   UPDATER_CHECK_NOW: 'updater:check-now',
   UPDATER_AVAILABLE: 'updater:available',
+  /** Main → renderer: download-progress event with { percent: number }. */
+  UPDATER_DOWNLOAD_PROGRESS: 'updater:download-progress',
 
   COST_STATUS: 'cost:status',
   COST_GET_SETTINGS: 'cost:get-settings',

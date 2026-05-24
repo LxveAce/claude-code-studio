@@ -156,6 +156,7 @@ interface Window {
       ) => Promise<import('./shared/types').UpdaterSettings>;
       checkNow: () => Promise<import('./shared/types').UpdaterState>;
       onAvailable: (cb: (version: string) => void) => () => void;
+      onDownloadProgress: (cb: (percent: number) => void) => () => void;
     };
     cost: {
       status: () => Promise<import('./shared/types').CostStatus>;
