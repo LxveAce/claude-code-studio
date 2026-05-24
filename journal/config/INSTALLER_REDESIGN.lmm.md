@@ -129,5 +129,98 @@ acceptance criteria from the red-team are encoded in the design doc — Phase 2
 just needs the dist/ vs out/ separation; everything else lives in later
 phases.
 
+**Commit:** `674ff51` Phase 1 (design lock-in): bootstrap installer redesign for v1.1.
+
+### 2026-05-23 — Phase 2 (forge→builder migration) — IN PROGRESS
+
+**Architectural pivot discovered mid-phase** (worth recording before Phase 2 commit):
+
+Original Phase 2 plan was a full migration from `@electron-forge/plugin-vite`
+to either `electron-vite` or builder-native Vite plumbing. On reading
+`src/main/index.ts` lines 200-204 I found bare references to
+`MAIN_WINDOW_VITE_DEV_SERVER_URL` and `MAIN_WINDOW_VITE_NAME` outside any
+try/catch — these are injected by forge-plugin-vite's `define` mechanism at
+build time. A full migration would have to replace that injection,
+modify the index.ts to use `process.env.VITE_DEV_SERVER_URL` instead, and
+re-test the dev workflow.
+
+**Pivot:** **Hybrid pipeline.** Forge stays as the dev driver (`npm start`
+unchanged — keeps the HMR Vite dev server and the globals injection that
+makes it work). Electron-builder takes over **only the installer creation**.
+The bridge is `scripts/build-vite.mjs`, a standalone Vite runner that
+mimics forge-plugin-vite's prod-mode behavior:
+
+- Builds main → `.vite/build/index.js`
+- Builds preload → `.vite/build/preload.js`
+- Builds renderer → `.vite/renderer/main_window/index.html` + assets
+- Injects `define`:
+  - `MAIN_WINDOW_VITE_DEV_SERVER_URL = undefined`
+  - `MAIN_WINDOW_VITE_NAME = "main_window"`
+
+This is smaller-blast-radius than a full migration. Forge tooling stays
+intact as the escape hatch for emergency hotfixes during the v1.1 transition.
+In Phase 8 we evaluate whether to also rip out forge entirely (probably yes,
+once builder is proven for v1.1, v1.1.1, and v1.2).
+
+**Files added this phase:**
+- `electron-builder.yml` (builder config, dist/ output, NSIS oneClick, asarUnpack for node-pty)
+- `scripts/build-vite.mjs` (standalone Vite runner with the defines)
+- `package.json` scripts: `vite:build`, `dist:dir`, `dist`, `dist:publish`
+
+**Smoke test:** `vite:build` complete in 0.4s, 3 bundles emitted matching the
+forge-produced layout. `electron-builder --win --dir` running in background;
+verification of `dist/win-unpacked/Claude Code Studio.exe` launch pending.
+
+**Next sub-steps before Phase 2 commit:**
+1. Confirm `dist/win-unpacked/` produced.
+2. Smoke-launch the unpacked exe (kill after few seconds).
+3. Phase 2 red-team review.
+4. Commit.
+
+**Commit:** pending Phase 2 completion.
+
+### 2026-05-23 — Phase 2 (forge→builder migration) — COMPLETE (with env caveat)
+
+**What landed:**
+- `electron-builder.yml` — NSIS one-click config, `dist/` output, `asarUnpack`
+  for node-pty, GitHub publisher pointed at LxveAce/claude-code-studio.
+- `scripts/build-vite.mjs` — standalone Vite runner that mimics
+  forge-plugin-vite's prod injection: builds main → `.vite/build/index.js`,
+  preload → `.vite/build/preload.js`, renderer →
+  `.vite/renderer/main_window/`, with `MAIN_WINDOW_VITE_*` defines so the
+  bundled main doesn't ReferenceError on production load.
+- `package.json` scripts: `vite:build`, `dist:dir`, `dist`, `dist:publish`.
+- `electron-builder@26.8.1` added to devDeps.
+
+**Verified:**
+- `npm run dist:dir` produces working `dist/win-unpacked/` (217 MB exe +
+  19 MB asar). node-pty unpacked to `app.asar.unpacked/` with all DLLs.
+  Vite defines substituted correctly — `main_window` literal present,
+  dev branch dead-code-eliminated.
+- Bundled package.json strips `scripts` + `devDependencies`. No postinstall
+  ship risk.
+- Forge dev workflow (`npm start`) untouched; both pipelines coexist.
+
+**Discovered constraint (documented, not blocking):**
+- `npm run dist` (full NSIS installer) needs **Windows Developer Mode**
+  enabled. electron-builder downloads winCodeSign helpers including macOS
+  dylib symlinks that 7za can't extract without `SeCreateSymbolicLinkPrivilege`.
+  Workarounds tested (pre-extract cache, `-xr!darwin`) — all defeated by
+  builder's random-tmpdir-per-run cache logic. The real fix is the Settings
+  toggle. Documented in `docs/INSTALLER_REDESIGN.md` "Build prerequisite"
+  section + the Phase 2 red-team H1 finding. Phase 8 will add it to
+  `CONTRIBUTING.md`.
+
+**Architectural decision recorded:**
+- Hybrid pipeline confirmed sound. Forge stays through Phase 7 as escape
+  hatch; Phase 8 evaluates full removal.
+
+**Red-team:** `docs/security-reviews/SECURITY_REVIEW_BOOTSTRAP_INSTALLER_PHASE2_BUILDER.md`
+— 0 Crit / 1 High (env, not code) / 5 Med (all verified, no fix needed) /
+3 Low. Plan adjustment: CONTRIBUTING.md documents Dev Mode in Phase 8.
+
+**Next phase:** Phase 3 (bundled-runtime path resolution in pty-manager.ts).
+Independent of full NSIS build, so the Dev Mode constraint doesn't block it.
+
 **Commit:** to follow this entry.
 

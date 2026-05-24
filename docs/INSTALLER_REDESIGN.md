@@ -44,6 +44,25 @@ escape hatch, removed only in Phase 8 after the builder pipeline is proven.
 | 8 | **README + docs update** | Install section, BACKLOG cleanup, CONTRIBUTING dev-vs-user-Node note, `MIGRATING_FROM_V1.md`. Forge config removed here. |
 | 9 | **Integrated red-team + clean-VM test** | `SECURITY_REVIEW_BOOTSTRAP_INSTALLER.md`, end-to-end VM test, tag `v1.1.0-rc1`. |
 
+## Build prerequisite: Windows Developer Mode
+
+The full NSIS installer build (`npm run dist`) requires
+**Windows Developer Mode enabled** on the build machine.
+
+**Why:** electron-builder downloads `winCodeSign-2.6.0.7z` and extracts it
+using a bundled 7za. The archive contains macOS code-signing helpers with
+internal symlinks (`libcrypto.dylib`, `libssl.dylib`). On Windows, creating
+symlinks requires either admin privileges or the
+`SeCreateSymbolicLinkPrivilege` granted by Developer Mode. Without it, 7za
+errors and builder bails before producing the installer.
+
+**Enable once:** *Settings → Privacy & Security → For Developers → Developer
+Mode → On.* No restart required. The `npm run dist:dir` build (unpacked
+output for testing) works without this — only the full installer needs it.
+
+This is documented further in `CONTRIBUTING.md` (Phase 8) and called out in
+the Phase 2 security review.
+
 ## Versions pinned at design time
 
 - **Node runtime:** 22.22.3 Windows x64 (`node-v22.22.3-win-x64.zip`) — latest 22.x LTS.
