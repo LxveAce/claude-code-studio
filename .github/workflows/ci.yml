@@ -152,6 +152,43 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Push failure log to ci-logs branch
+        # The workflow-summary text isn't reachable for anonymous WebFetch
+        # because the run page is JS-rendered. Pushing the same content
+        # to a separate `ci-logs` branch makes it readable via the
+        # raw.githubusercontent.com URL with no auth:
+        # https://raw.githubusercontent.com/LxveAce/claude-code-studio/ci-logs/<label>/build.log
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          [ -f dist/build.log ] || echo "(no build.log captured)" > dist/build.log
+          git config user.email "ci@github-actions.local"
+          git config user.name "ci-logs-bot"
+          # Orphan branch — discard history each push so the log branch
+          # doesn't grow unbounded across runs.
+          git checkout --orphan ci-logs-tmp
+          git rm -rf . 2>/dev/null || true
+          mkdir -p "${{ matrix.label }}"
+          cp dist/build.log "${{ matrix.label }}/build.log"
+          [ -f dist/builder-debug.yml ] && cp dist/builder-debug.yml "${{ matrix.label }}/builder-debug.yml" || true
+          {
+            echo "Run ID: ${{ github.run_id }}"
+            echo "Commit: ${{ github.sha }}"
+            echo "Branch: ${{ github.ref_name }}"
+            echo "Job:    ${{ matrix.label }}"
+            echo "Run URL: https://github.com/LxveAce/claude-code-studio/actions/runs/${{ github.run_id }}"
+          } > "${{ matrix.label }}/meta.txt"
+          git add "${{ matrix.label }}/"
+          git commit -m "ci-log: ${{ matrix.label }} for ${{ github.sha }}"
+          # Force-push to keep the branch fresh; the meta file shows
+          # which run this log is from.
+          git push -f \
+            "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" \
+            "ci-logs-tmp:ci-logs"
+
       - name: Upload artifact
         # Always upload, even on build failure, so debug logs can be
         # post-mortemed via builder-debug.yml.
