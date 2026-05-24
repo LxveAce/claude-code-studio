@@ -564,6 +564,51 @@ export function SettingsPanel() {
         )}
       </div>
 
+      {/* Claude CLI */}
+      <div style={{
+        padding: '14px 16px',
+        background: 'var(--bg-primary)',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border)',
+      }}>
+        <div style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: 'var(--text-secondary)',
+          marginBottom: 8,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>
+          Claude CLI
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+          The first-launch onboarding helps install or sign in to the Claude
+          Code CLI. If you dismissed it, you can re-show it here.
+        </div>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await window.electronAPI.cli.resetOnboarding();
+              alert('Re-shown on next restart. Close and reopen Claude Code Studio.');
+            } catch {
+              alert('Could not reset onboarding state.');
+            }
+          }}
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            color: 'var(--text-primary)',
+            padding: '6px 12px',
+            fontSize: 11,
+            borderRadius: 6,
+            cursor: 'pointer',
+          }}
+        >
+          Re-show CLI onboarding
+        </button>
+      </div>
+
       {/* About */}
       <div style={{
         padding: '14px 16px',
@@ -581,7 +626,7 @@ export function SettingsPanel() {
         }}>
           About
         </div>
-        <SettingRow label="App Version" value="1.0.0" />
+        <SettingRow label="App Version" value="1.1.0-dev" />
         <SettingRow label="Electron" value="42.2.0" />
         <SettingRow label="React" value="19.x" />
         <SettingRow label="Author" value="LxveAce" />

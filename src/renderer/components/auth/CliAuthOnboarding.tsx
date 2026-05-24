@@ -59,6 +59,16 @@ export function CliAuthOnboarding({ onClose, sendToActivePane }: Props) {
     void refreshStatus();
   }, [refreshStatus]);
 
+  // Esc-to-dismiss (Phase 6 L1 — equivalent to "Maybe later", does not
+  // persist the onboarding-complete flag).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   const handleInstall = async () => {
     setBusy(true);
     setInstallResult(null);
