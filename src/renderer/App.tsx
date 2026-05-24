@@ -12,6 +12,7 @@ import { AuthPanel } from './components/auth/AuthPanel';
 import { SyncPanel } from './components/sync/SyncPanel';
 import { CostPanel } from './components/cost/CostPanel';
 import { CommandPalette } from './components/palette/CommandPalette';
+import { CliAuthOnboarding } from './components/auth/CliAuthOnboarding';
 import {
   SplitLayout,
   splitPane,
@@ -53,6 +54,11 @@ export function App() {
   const [pidByPane, setPidByPane] = useState<Record<string, number>>({});
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [bindings, setBindings] = useState<HotkeyBinding[]>([]);
+  // Phase 6 — first-launch CLI onboarding. Shown when persisted
+  // onboarding-complete is false AND `claude doctor` reports the CLI is
+  // missing or unauthenticated. Recovers from Phase 4's NSIS bootstrap
+  // soft-fail.
+  const [cliOnboardingOpen, setCliOnboardingOpen] = useState(false);
   /** Map of paneId -> sendInput. Tracking *all* sender functions lets the
    *  palette / snippets always reach the *currently active* pane. */
   const sendersRef = useRef<Record<string, (data: string) => void>>({});
@@ -105,6 +111,33 @@ export function App() {
     }, 250);
     return () => window.clearTimeout(handle);
   }, [hydrated, layout, activePanel]);
+
+  // --- CLI onboarding check (Phase 6) ----------------------------------------
+  // Runs once post-hydration. If user hasn't completed onboarding AND the CLI
+  // is either missing or unauthenticated, show the modal. Soft-fails silently
+  // on IPC errors — we never want this to block app startup.
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const onboarding = await window.electronAPI.cli.getOnboarding();
+        if (cancelled || onboarding.complete) return;
+        const status = await window.electronAPI.cli.status();
+        if (cancelled) return;
+        if (!status.installed || !status.authenticated) {
+          setCliOnboardingOpen(true);
+        }
+      } catch {
+        // Defensive — if status/onboarding IPC fails for any reason, just
+        // skip the modal. User can still use the app; the missing-CLI case
+        // will manifest in the terminal panel anyway.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated]);
 
   // --- pane sender management -------------------------------------------------
   const registerSender = useCallback(
@@ -384,6 +417,19 @@ export function App() {
         onFocusPrev={() => handleFocusNext(-1)}
         onResetLayout={handleResetLayout}
       />
+
+      {cliOnboardingOpen && (
+        <CliAuthOnboarding
+          onClose={() => setCliOnboardingOpen(false)}
+          sendToActivePane={(text) => {
+            // "Sign in to Claude" sends `claude login\r`. Switch to the
+            // terminal panel so the user sees the CLI's OAuth prompts
+            // play out.
+            setActivePanel('terminal');
+            sendToActive(text, false);
+          }}
+        />
+      )}
     </div>
   );
 }

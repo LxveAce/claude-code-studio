@@ -10,7 +10,11 @@
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "publish": "electron-forge publish"
+    "publish": "electron-forge publish",
+    "vite:build": "node scripts/build-vite.mjs",
+    "dist:dir": "npm run vite:build && electron-builder --win --dir",
+    "dist": "npm run vite:build && electron-builder --win",
+    "dist:publish": "npm run vite:build && electron-builder --win --publish always"
   },
   "keywords": [
     "claude",
@@ -55,6 +59,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "electron": "42.2.0",
+    "electron-builder": "^26.8.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.14"
   }

@@ -178,4 +178,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onInvokeAction: (callback: (action: string) => void) =>
       subscribe<[string]>(IPC.TRAY_INVOKE_ACTION, callback),
   },
+  cli: {
+    /** Run `claude doctor` + return parsed CliStatus. */
+    status: () => ipcRenderer.invoke(IPC.CLI_STATUS),
+    /** Re-run the Phase 4 npm install using the bundled runtime. */
+    install: () => ipcRenderer.invoke(IPC.CLI_INSTALL),
+    /** Read persisted onboarding flag (so we don't reshow the modal). */
+    getOnboarding: () => ipcRenderer.invoke(IPC.CLI_ONBOARDING_GET),
+    /** Mark first-launch onboarding done — modal won't reshow. */
+    markComplete: () => ipcRenderer.invoke(IPC.CLI_ONBOARDING_COMPLETE),
+    /** Reset onboarding (for re-prompting / debug). */
+    resetOnboarding: () => ipcRenderer.invoke(IPC.CLI_ONBOARDING_RESET),
+  },
 });

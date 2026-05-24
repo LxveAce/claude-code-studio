@@ -1,3 +1,31 @@
+/**
+ * Status of the Claude Code CLI on this machine. Populated by
+ * CliService.getStatus() which shells out to `claude doctor` and falls
+ * back to checking ~/.claude.json existence if doctor is unavailable.
+ *
+ * - installed: `claude` is resolvable (bundled or on PATH).
+ * - authenticated: `claude doctor` reports OK, OR `~/.claude.json` exists
+ *   and contains an auth section. Best-effort — `claude doctor` is the
+ *   source of truth when available.
+ * - version: parsed from doctor output if present; null otherwise.
+ * - source: where the CLI was found — 'bundled' (resources/runtime/),
+ *   'path' (system PATH), or 'missing'.
+ * - lastError: last shell-out error message for diagnostics; null on success.
+ */
+export interface CliStatus {
+  installed: boolean;
+  authenticated: boolean;
+  version: string | null;
+  source: 'bundled' | 'path' | 'missing';
+  lastError: string | null;
+}
+
+/** Persisted onboarding completion flag. Stored at <userData>/cli-onboarding.json. */
+export interface CliOnboardingState {
+  complete: boolean;
+  completedAt: number | null;
+}
+
 export interface ResourceSnapshot {
   system: {
     cpuPercent: number;

@@ -223,5 +223,12 @@ interface Window {
         cb: (action: import('./shared/types').HotkeyAction) => void
       ) => () => void;
     };
+    cli: {
+      status: () => Promise<import('./shared/types').CliStatus>;
+      install: () => Promise<{ ok: boolean; output: string; error: string | null }>;
+      getOnboarding: () => Promise<import('./shared/types').CliOnboardingState>;
+      markComplete: () => Promise<import('./shared/types').CliOnboardingState>;
+      resetOnboarding: () => Promise<import('./shared/types').CliOnboardingState>;
+    };
   };
 }

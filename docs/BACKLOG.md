@@ -7,6 +7,38 @@ to start.
 
 ---
 
+## 0. v1.1 bootstrap installer — IN DEVELOPMENT
+
+**Status:** 4 of 9 phases shipped on `feature/bootstrap-installer`. See
+[`INSTALLER_REDESIGN.md`](./INSTALLER_REDESIGN.md) and
+[`MIGRATING_FROM_V1.md`](./MIGRATING_FROM_V1.md) for the design + upgrade
+path. Per-phase journal at
+[`../journal/config/INSTALLER_REDESIGN.lmm.md`](../journal/config/INSTALLER_REDESIGN.lmm.md).
+
+**Phases complete:** 1 (design) · 2 (forge→builder hybrid) · 3 (PtyManager
+runtime path) · 4 (NSIS bootstrap macros) · 8 (this docs update).
+
+**Phases remaining for v1.1.0-rc1:**
+- Phase 5: branded NSIS UI assets (placeholders OK for rc1; real art before final)
+- Phase 6: first-launch CLI auth onboarding modal (`claude doctor` detection,
+  one-click `claude login`, "install CLI now" soft-fail recovery). **Hard
+  blocker for rc1** per Phase 4 red-team M5.
+- Phase 7: `update-electron-app` → `electron-updater` migration
+- Phase 9: integrated cross-feature red-team + clean-VM test, tag rc1
+
+### Phase 4b — Offline installer variant (deferred)
+
+Phase 4 shipped online installer only. The offline variant (Setup.exe
+bundles Node + the CLI tarball inside the installer payload, no network
+needed during install) is deferred to a Phase 4b based on user-reported
+install-failure rate. Trigger to implement: first user report of install
+failure due to network issues. Estimate: +130 MB on the release asset
+size; same NSIS script flow but reads files from `$PLUGINSDIR\` instead of
+downloading. See `INSTALLER_REDESIGN.md` Phase 4 red-team H1 for the full
+rationale.
+
+---
+
 ## 1. Backend databases (Phase 5 follow-through)
 
 **Status**: Phase 5 shipped with a local-stub auth backend that

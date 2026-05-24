@@ -101,4 +101,11 @@ export const IPC = {
 
   /** Main → renderer: tray asked us to fire a renderer-side action. */
   TRAY_INVOKE_ACTION: 'tray:invoke-action',
+
+  // CLI auth onboarding (Phase 6) — recovery path for Phase 4 soft-fail.
+  CLI_STATUS: 'cli:status',
+  CLI_INSTALL: 'cli:install',
+  CLI_ONBOARDING_GET: 'cli:onboarding-get',
+  CLI_ONBOARDING_COMPLETE: 'cli:onboarding-complete',
+  CLI_ONBOARDING_RESET: 'cli:onboarding-reset',
 } as const;

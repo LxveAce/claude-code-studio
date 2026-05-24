@@ -15,6 +15,7 @@ import { SessionService } from './session-service';
 import { HotkeysService } from './hotkeys-service';
 import { TrayService } from './tray-service';
 import { CostService } from './cost-service';
+import { CliService } from './cli-service';
 import { IPC } from '../shared/ipc-channels';
 import type { HotkeyAction } from '../shared/types';
 
@@ -41,6 +42,7 @@ let sessionService: SessionService | null = null;
 let hotkeysService: HotkeysService | null = null;
 let trayService: TrayService | null = null;
 let costService: CostService | null = null;
+let cliService: CliService | null = null;
 let isQuitting = false;
 /** Pane IDs whose PTY was killed by an explicit user "restart" — suppresses
  * the imminent "Claude exited" notification once per restart. Superseded the
@@ -131,6 +133,11 @@ function getHotkeys(): HotkeysService {
 function getTray(): TrayService {
   if (!trayService) trayService = new TrayService();
   return trayService;
+}
+
+function getCli(): CliService {
+  if (!cliService) cliService = new CliService();
+  return cliService;
 }
 
 function getCost(): CostService {
@@ -321,6 +328,15 @@ function setupCompact() {
   ipcMain.handle(IPC.COMPACT_CONFIG_SET, (_event, config) =>
     compactController.setConfig(config)
   );
+}
+
+function setupCli() {
+  // Phase 6 onboarding — recovers from Phase 4 NSIS bootstrap soft-fail.
+  ipcMain.handle(IPC.CLI_STATUS, () => getCli().getStatus());
+  ipcMain.handle(IPC.CLI_INSTALL, () => getCli().install());
+  ipcMain.handle(IPC.CLI_ONBOARDING_GET, () => getCli().getOnboardingState());
+  ipcMain.handle(IPC.CLI_ONBOARDING_COMPLETE, () => getCli().setOnboardingComplete());
+  ipcMain.handle(IPC.CLI_ONBOARDING_RESET, () => getCli().resetOnboarding());
 }
 
 function setupGit() {
@@ -611,6 +627,7 @@ app.whenReady().then(() => {
   setupUpdater();
   setupSession();
   setupCost();
+  setupCli();
   setupWindowControls();
   setupHotkeys();
   setupTray();

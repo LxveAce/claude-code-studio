@@ -47,14 +47,37 @@ v1.0 ships **Windows-only** (Squirrel.Windows installer + auto-update).
 Development works on Linux and macOS; macOS and Linux packaging are on the
 roadmap — see [`docs/BACKLOG.md`](./docs/BACKLOG.md).
 
-## Prerequisites
+## Installing (v1.0)
 
-- **Node.js `>=22.0.0 <24.0.0`** — Node 22 LTS is required (electron-packager is not yet
-  compatible with Node 24). `package.json` pins `engines.node`.
-- **For the node-pty native build on Windows:** Visual Studio Build Tools 2022
-  with the C++ workload, plus the Windows 10/11 SDK (10.0.22621 or newer).
+Download `Claude.Code.Studio-1.0.0.Setup.exe` from the
+[v1.0.0 release](https://github.com/LxveAce/claude-code-studio/releases/tag/v1.0.0)
+and double-click. v1.0 requires **Claude Code CLI already installed**:
 
-## Getting started
+```bash
+npm install -g @anthropic-ai/claude-code
+claude login          # one-time browser-based OAuth
+```
+
+> **v1.1 is in development** and replaces this with a one-click installer
+> that bootstraps Node + the Claude CLI for you — no manual prereq install.
+> See [`docs/INSTALLER_REDESIGN.md`](./docs/INSTALLER_REDESIGN.md) for the
+> design and [`docs/MIGRATING_FROM_V1.md`](./docs/MIGRATING_FROM_V1.md)
+> for the upgrade path when it ships.
+
+## Building from source
+
+### Developer prerequisites
+
+- **Node.js `>=22.0.0 <24.0.0`** — Node 22 LTS is required (electron-packager
+  is not yet compatible with Node 24). `package.json` pins `engines.node`.
+  Windows users: see [`CONTRIBUTING.md`](./CONTRIBUTING.md#node-22-on-windows).
+- **For node-pty native build on Windows:** Visual Studio Build Tools 2022
+  with the C++ workload, plus the Windows 10/11 SDK (10.0.22621+).
+- **For `npm run dist` (v1.1 NSIS installer build):** Windows Developer Mode
+  enabled (Settings → Privacy & Security → For Developers). See
+  [`docs/INSTALLER_REDESIGN.md`](./docs/INSTALLER_REDESIGN.md#build-prerequisite-windows-developer-mode).
+
+### Getting started
 
 ```bash
 git clone https://github.com/LxveAce/claude-code-studio.git
@@ -63,15 +86,21 @@ npm install            # runs the node-pty patch postinstall
 npm start              # dev: Vite + Electron with HMR
 ```
 
-## Build & package
+### Build outputs
 
 ```bash
-npm run package        # build an unpacked app under out/
-npm run make           # Windows Squirrel installer
+# v1.0 Squirrel pipeline (forge — kept as escape hatch during v1.1 transition)
+npm run package        # unpacked app under out/
+npm run make           # Squirrel installer under out/make/squirrel.windows/
 npm run publish        # draft a GitHub release (requires GITHUB_TOKEN)
+
+# v1.1 NSIS pipeline (electron-builder — adds bootstrap installer)
+npm run dist:dir       # unpacked output under dist/win-unpacked/ (smoke test)
+npm run dist           # NSIS Setup.exe under dist/  (needs Developer Mode)
+npm run dist:publish   # build + publish to GitHub Releases as draft
 ```
 
-> Builds require Node 22 — see [Prerequisites](#prerequisites).
+> Both pipelines need Node 22 — see [Developer prerequisites](#developer-prerequisites).
 
 ## Tech stack
 

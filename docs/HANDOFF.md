@@ -1,14 +1,24 @@
 # Claude Code Studio - Development Handoff
 
-## Current State (2026-05-22)
+## Current State (2026-05-23)
 
-All seven plan phases shipped. The app embeds Claude Code via node-pty
-in resizable split panes, with sidebar panels for compact-controller,
-commands, GitHub, LMM journaling, vault sync, account, cost tracking,
-and settings. Auto-updater, system tray, command palette, snippets,
-notifications, and rebindable hotkeys are wired in. Each phase carries
-its own self-red-team review under `docs/security-reviews/`
+All seven plan phases shipped (v1.0.0 released). The app embeds Claude Code
+via node-pty in resizable split panes, with sidebar panels for
+compact-controller, commands, GitHub, LMM journaling, vault sync, account,
+cost tracking, and settings. Auto-updater, system tray, command palette,
+snippets, notifications, and rebindable hotkeys are wired in. Each phase
+carries its own self-red-team review under `docs/security-reviews/`
 (`SECURITY_REVIEW_*.md`).
+
+### v1.1 development — bootstrap installer (in progress on `feature/bootstrap-installer`)
+
+v1.1 replaces v1.0's "user must install Node + npm i -g @anthropic-ai/claude-code
+themselves" prereq with a one-click NSIS installer that bootstraps the
+Claude CLI for the user. Migration plan: 9 phases (5 shipped at time of
+writing). See `INSTALLER_REDESIGN.md` for the design + status,
+`MIGRATING_FROM_V1.md` for the v1.0 → v1.1 upgrade path,
+`journal/config/INSTALLER_REDESIGN.lmm.md` for the phase-by-phase progress
+log, and `BACKLOG.md` §0 for what's left to ship rc1.
 
 ## Post-v1.0 Fixes & Polish (2026-05-23)
 

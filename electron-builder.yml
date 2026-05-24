@@ -1,0 +1,73 @@
+appId: com.lxveace.claude-code-studio
+productName: Claude Code Studio
+copyright: Copyright © 2026 LxveAce
+
+# IMPORTANT: builder output goes to dist/ to avoid colliding with forge's out/
+# (per Phase 1 red-team M3). Both pipelines coexist until Phase 8.
+directories:
+  output: dist
+  buildResources: build
+
+# The runtime expects main to be at .vite/build/index.js — that's what
+# scripts/build-vite.mjs produces. Builder reads package.json's `main`
+# but we restate it here for clarity.
+extraMetadata:
+  main: .vite/build/index.js
+
+files:
+  - ".vite/**/*"
+  - "package.json"
+  # Vite externals declared in vite.main.config.ts must be on disk because
+  # the bundled main process emits bare require() for them. Builder
+  # auto-includes production deps from package.json by default, so
+  # node-pty and systeminformation come along automatically.
+
+asar: true
+# node-pty on Windows LoadLibraryW's sibling DLLs (winpty.dll,
+# winpty-agent.exe, conpty.dll, OpenConsole.exe) — those have to live on
+# disk, not inside the asar. Same reasoning as forge.config.ts.
+asarUnpack:
+  - "**/node_modules/node-pty/**"
+
+# We rebuild node-pty ourselves via the postinstall script
+# (scripts/patch-node-pty.js + electron-rebuild). Letting builder rebuild
+# again would undo our patches.
+npmRebuild: false
+
+# Anthropic CLI install + bundled Node runtime happen at install time via
+# the NSIS bootstrap script (Phase 4). For Phase 2 we ship the existing
+# app behavior — assumes claude is on PATH.
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # icon: build/icon.ico  # uncommented in Phase 5 once asset exists
+  artifactName: "Claude.Code.Studio-${version}-Setup.${ext}"
+
+nsis:
+  # oneClick + perMachine:false matches the silent, per-user, auto-launch
+  # behavior Squirrel had — but with a real progress UI (NSIS shows it,
+  # Squirrel doesn't).
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: "Claude Code Studio"
+  artifactName: "Claude.Code.Studio-${version}-Setup.${ext}"
+  # Custom NSIS script: downloads Node 22 + @anthropic-ai/claude-code into
+  # $INSTDIR\resources\runtime\ as part of the install. See build/installer.nsh
+  # for the customInstall/customUnInstall macro implementations.
+  include: build/installer.nsh
+  # installerIcon: build/installerIcon.ico   # Phase 5
+  # uninstallerIcon: build/uninstallerIcon.ico  # Phase 5
+  # installerHeader: build/installerHeader.bmp  # Phase 5
+  # installerSidebar: build/installerSidebar.bmp # Phase 5
+
+publish:
+  - provider: github
+    owner: LxveAce
+    repo: claude-code-studio
+    releaseType: draft
