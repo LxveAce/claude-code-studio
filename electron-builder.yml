@@ -44,9 +44,8 @@ win:
       arch:
         - x64
   # icon: build/icon.ico  # uncommented in Phase 5 once asset exists
-  # Simple, OS-only filename — users on the GitHub release just see
-  # "Claude-Code-Studio-Windows.exe" instead of "...2.0.0-Setup.exe".
-  artifactName: "Claude-Code-Studio-Windows.${ext}"
+  # Version-stamped OS-only filename: Claude-Code-Studio-2.0.0-Windows.exe
+  artifactName: "Claude-Code-Studio-${version}-Windows.${ext}"
 
 # macOS — DMG drag-to-Applications + zip for the auto-updater.
 # Bootstrap (Node + Claude CLI) happens on first launch via the existing
@@ -61,27 +60,20 @@ win:
 # in the per-OS README install section.
 mac:
   # GitHub's `macos-latest` runner is Apple Silicon (arm64). Cross-
-  # compiling to x64 on an arm64 host requires Rosetta + extra setup
-  # and electron-builder's `arch: x64` on an M-series host can fail
-  # depending on the runner image version. Build arm64 only for v2.0
-  # — Apple Silicon native is the larger user base, and Intel Macs
-  # can run the arm64 build via Rosetta (slower but functional).
-  # Native x64 builds (and the future macos-13 Intel matrix entry)
-  # are tracked for v2.1.
+  # compiling to x64 on an arm64 host requires Rosetta + extra setup.
+  # arm64-only build for v2.0; Intel Macs run via Rosetta.
+  #
+  # NOTE on targets: only dmg (no zip). The .zip was for auto-update via
+  # electron-updater. Per user request we're shipping only the single
+  # installer file per OS — auto-update is disabled for v2.0 and tracked
+  # for v2.1 (when we'll either re-enable .zip + latest-mac.yml or host
+  # them on a separate update channel).
   target:
     - target: dmg
       arch: arm64
-    - target: zip
-      arch: arm64
   category: public.app-category.developer-tools
-  artifactName: "Claude-Code-Studio-Mac.${ext}"
-  # hardenedRuntime + entitlements only matter once we sign — for unsigned
-  # dev builds, omitting them keeps the app launchable via the right-click
-  # → Open workaround. Re-enable when we add notarization in v2.1.
+  artifactName: "Claude-Code-Studio-${version}-Mac.${ext}"
   hardenedRuntime: false
-  # Skip signing entirely — without CSC_LINK set, electron-builder
-  # tries identityAutoDiscovery and may fail on CI runners that have
-  # stray developer certs in the keychain.
   identity: null
 
 dmg:
@@ -113,31 +105,32 @@ linux:
       arch:
         - x64
   category: Development
-  # All 3 Linux formats share the same prefix; extension disambiguates
-  # (.AppImage / .deb / .rpm).
-  artifactName: "Claude-Code-Studio-Linux.${ext}"
-  # No custom MIME types — the app doesn't register a URL scheme handler
-  # so claiming one in the .desktop file would just produce dead
-  # right-click entries in file managers. Add back if we ever wire a
-  # claude-code-studio:// protocol.
+  # Per-distro naming via the top-level appImage/deb/rpm blocks below.
+  # The linux.artifactName here is the fallback default.
+  artifactName: "Claude-Code-Studio-${version}-Linux.${ext}"
+
+# Per-target overrides so each Linux format names its target distro
+# in the filename — users on Fedora know to grab the .rpm,
+# Ubuntu/Debian grabs the .deb, anything else grabs the AppImage.
+appImage:
+  artifactName: "Claude-Code-Studio-${version}-Linux-Universal.${ext}"
+
+deb:
+  artifactName: "Claude-Code-Studio-${version}-Linux-Debian.${ext}"
+
+rpm:
+  artifactName: "Claude-Code-Studio-${version}-Linux-Fedora.${ext}"
 
 nsis:
-  # oneClick + perMachine:false matches the silent, per-user, auto-launch
-  # behavior Squirrel had — but with a real progress UI (NSIS shows it,
-  # Squirrel doesn't).
   oneClick: true
   perMachine: false
   allowToChangeInstallationDirectory: false
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: "Claude Code Studio"
-  # NSIS-specific override (same as win.artifactName — keeping in sync).
-  artifactName: "Claude-Code-Studio-Windows.${ext}"
-  # Disable .exe.blockmap generation — blockmaps enable delta updates
-  # (download only the diff between versions). Useful once there's an
-  # install base, but for v2.0 with zero existing installs they're just
-  # extra confusing files in the release. Re-enable for v2.1+ if delta
-  # update size matters.
+  artifactName: "Claude-Code-Studio-${version}-Windows.${ext}"
+  # Disable .exe.blockmap generation — used only for delta updates which
+  # we're not shipping in v2.0 (auto-updater disabled this release).
   differentialPackage: false
   # Custom NSIS script: downloads Node 22 + @anthropic-ai/claude-code into
   # $INSTDIR\resources\runtime\ as part of the install. See build/installer.nsh
