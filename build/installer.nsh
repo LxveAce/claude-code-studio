@@ -141,12 +141,19 @@
 
   ; --- Step 4: Install Claude Code CLI via bundled npm ---
   !insertmacro CCSLog "Installing Claude Code CLI (${CLAUDE_PKG})..."
-  ; NOTE: dropped --silent so npm actually emits error output when
-  ; something fails. With --silent, the npm exit-code-1 path leaves
-  ; stderr empty and the modal can't tell the user what went wrong.
-  ; --loglevel=error still suppresses non-error chatter while keeping
-  ; failure detail.
-  nsExec::ExecToStack '"$INSTDIR\resources\runtime\node.exe" "$INSTDIR\resources\runtime\node_modules\npm\bin\npm-cli.js" install --prefix "$INSTDIR\resources\runtime" --registry=https://registry.npmjs.org/ --no-save --no-package-lock --no-audit --no-fund --loglevel=error ${CLAUDE_PKG}'
+  ; Notes on flags:
+  ; --loglevel=error — quiet on success, verbose stderr on failure.
+  ; --ignore-scripts — skip pre/post-install lifecycle hooks. A
+  ;   transitive dep of @anthropic-ai/claude-code has a postinstall
+  ;   that requires node-gyp, but Node.js's portable Windows zip ships
+  ;   npm WITHOUT the node-gyp/bin/node-gyp.js entry point that npm's
+  ;   internal @npmcli/run-script tries to require. With --ignore-
+  ;   scripts npm doesn't try to run any postinstall, so node-gyp is
+  ;   never needed. Claude Code CLI itself is JS-only and works fine
+  ;   without lifecycle scripts; transitive native builds that ARE
+  ;   needed at runtime ship as prebuilds via node-gyp-build or
+  ;   prebuild-install (those don't run as lifecycle scripts).
+  nsExec::ExecToStack '"$INSTDIR\resources\runtime\node.exe" "$INSTDIR\resources\runtime\node_modules\npm\bin\npm-cli.js" install --prefix "$INSTDIR\resources\runtime" --registry=https://registry.npmjs.org/ --no-save --no-package-lock --no-audit --no-fund --ignore-scripts --loglevel=error ${CLAUDE_PKG}'
   Pop $0
   Pop $1
   IntCmp $0 0 npm_ok

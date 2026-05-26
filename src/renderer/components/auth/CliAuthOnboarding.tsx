@@ -106,11 +106,12 @@ export function CliAuthOnboarding({ onClose, sendToActivePane }: Props) {
   };
 
   const handleLoginInTerminal = () => {
-    // Type `claude login` into the active pane and submit. User then
-    // completes the OAuth flow in their browser. We don't dismiss the
-    // modal here — the user may want to keep it open until login
-    // completes, then click "Don't show again".
-    sendToActivePane('claude login\r');
+    // Type `claude login` into the active pane. App.tsx wires the
+    // sendToActivePane callback to switch the active panel to terminal
+    // first and then call sendToActive(text, submit=true) which appends
+    // the proper CR to actually submit the command. Sending bare text
+    // (no \r) lets the App-side helper do the CR sanitization correctly.
+    sendToActivePane('claude login');
   };
 
   const handleDismiss = async (markComplete: boolean) => {

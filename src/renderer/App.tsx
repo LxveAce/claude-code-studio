@@ -422,11 +422,14 @@ export function App() {
         <CliAuthOnboarding
           onClose={() => setCliOnboardingOpen(false)}
           sendToActivePane={(text) => {
-            // "Sign in to Claude" sends `claude login\r`. Switch to the
-            // terminal panel so the user sees the CLI's OAuth prompts
-            // play out.
+            // "Sign in to Claude" types `claude login` into the active
+            // pane. Switch to the terminal first so the user sees the
+            // CLI's OAuth prompts. `submit: true` makes sendToActive
+            // append a real CR after the command — without it the text
+            // appears typed but the command never runs (PTY readline
+            // needs CR, not LF, to register Enter).
             setActivePanel('terminal');
-            sendToActive(text, false);
+            sendToActive(text, true);
           }}
         />
       )}
