@@ -16,6 +16,7 @@ import { HotkeysService } from './hotkeys-service';
 import { TrayService } from './tray-service';
 import { CostService } from './cost-service';
 import { CliService } from './cli-service';
+import { ModelRegistry } from './model-registry';
 import { IPC } from '../shared/ipc-channels';
 import type { HotkeyAction } from '../shared/types';
 
@@ -351,6 +352,31 @@ function setupCli() {
   ipcMain.handle(IPC.CLI_ONBOARDING_RESET, () => getCli().resetOnboarding());
 }
 
+function setupModels() {
+  // v3.0 multi-model scaffold. Catalog CRUD only — actual launch /
+  // download flows come later. See BACKLOG.md ★ multi-model section.
+  const reg = ModelRegistry.instance();
+  ipcMain.handle(IPC.MODELS_LIST, () => reg.list());
+  ipcMain.handle(IPC.MODELS_GET, (_event, id: unknown) => {
+    if (typeof id !== 'string') return null;
+    return reg.get(id);
+  });
+  ipcMain.handle(IPC.MODELS_ADD, (_event, model: unknown) => {
+    // Cast trusted via renderer-side type-checking; main process
+    // validation lives in ModelRegistry.add.
+    return reg.add(model as import('../shared/types').ModelDefinition);
+  });
+  ipcMain.handle(IPC.MODELS_UPDATE, (_event, id: unknown, patch: unknown) => {
+    if (typeof id !== 'string') throw new Error('model id must be string');
+    return reg.update(id, patch as Partial<import('../shared/types').ModelDefinition>);
+  });
+  ipcMain.handle(IPC.MODELS_REMOVE, (_event, id: unknown) => {
+    if (typeof id !== 'string') throw new Error('model id must be string');
+    return reg.remove(id);
+  });
+  ipcMain.handle(IPC.MODELS_RESET_SEED, () => reg.resetToSeed());
+}
+
 function setupGit() {
   ipcMain.handle(IPC.GIT_DETECT, (_event, cwd?: string) => gitService.detect(cwd));
   ipcMain.handle(IPC.GIT_GET_CWD, () => gitService.getCwd());
@@ -640,6 +666,7 @@ app.whenReady().then(() => {
   setupSession();
   setupCost();
   setupCli();
+  setupModels();
   setupWindowControls();
   setupHotkeys();
   setupTray();

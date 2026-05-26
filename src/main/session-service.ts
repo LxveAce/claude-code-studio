@@ -26,6 +26,7 @@ const VALID_PANEL_IDS = new Set([
   'sync',
   'auth',
   'settings',
+  'models',
 ]);
 
 interface PersistedSession {

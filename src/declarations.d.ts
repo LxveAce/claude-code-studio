@@ -232,5 +232,13 @@ interface Window {
       markComplete: () => Promise<import('./shared/types').CliOnboardingState>;
       resetOnboarding: () => Promise<import('./shared/types').CliOnboardingState>;
     };
+    models: {
+      list: () => Promise<import('./shared/types').ModelDefinition[]>;
+      get: (id: string) => Promise<import('./shared/types').ModelDefinition | null>;
+      add: (model: import('./shared/types').ModelDefinition) => Promise<import('./shared/types').ModelRegistryState>;
+      update: (id: string, patch: Partial<import('./shared/types').ModelDefinition>) => Promise<import('./shared/types').ModelRegistryState>;
+      remove: (id: string) => Promise<import('./shared/types').ModelRegistryState>;
+      resetSeed: () => Promise<import('./shared/types').ModelRegistryState>;
+    };
   };
 }

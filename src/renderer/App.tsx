@@ -13,6 +13,7 @@ import { SyncPanel } from './components/sync/SyncPanel';
 import { CostPanel } from './components/cost/CostPanel';
 import { CommandPalette } from './components/palette/CommandPalette';
 import { CliAuthOnboarding } from './components/auth/CliAuthOnboarding';
+import { ModelsPanel } from './components/models/ModelsPanel';
 import {
   SplitLayout,
   splitPane,
@@ -38,7 +39,8 @@ export type SidebarPanel =
   | 'lmm'
   | 'sync'
   | 'auth'
-  | 'settings';
+  | 'settings'
+  | 'models';  // v3.0 multi-model scaffold
 
 const DEFAULT_LAYOUT: SplitNode = {
   type: 'pane',
@@ -468,6 +470,8 @@ function RightPanel({
       return <AuthPanel />;
     case 'sync':
       return <SyncPanel />;
+    case 'models':
+      return <ModelsPanel />;
     default:
       return <PlaceholderPanel panel={panel} />;
   }

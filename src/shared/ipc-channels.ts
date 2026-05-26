@@ -112,4 +112,12 @@ export const IPC = {
   CLI_ONBOARDING_RESET: 'cli:onboarding-reset',
   /** Main → renderer: each line of npm install output during cli:install. */
   CLI_INSTALL_PROGRESS: 'cli:install-progress',
+
+  // v3.0 multi-model scaffold.
+  MODELS_LIST: 'models:list',
+  MODELS_GET: 'models:get',
+  MODELS_ADD: 'models:add',
+  MODELS_UPDATE: 'models:update',
+  MODELS_REMOVE: 'models:remove',
+  MODELS_RESET_SEED: 'models:reset-seed',
 } as const;

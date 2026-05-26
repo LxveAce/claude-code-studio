@@ -26,6 +26,59 @@ export interface CliOnboardingState {
   completedAt: number | null;
 }
 
+/**
+ * v3.0 multi-model scaffold types.
+ *
+ * Two categories of model the app can run side-by-side:
+ *   - 'api': inference happens on a remote server (Anthropic, OpenAI, …).
+ *           Local cost is just network + render. Auth per-provider.
+ *   - 'local': inference happens on the user's hardware. Binary is
+ *           downloaded once + cached in <userData>/models/<id>/, then
+ *           launched via a runtime (llama.cpp / ollama / custom).
+ *
+ * This file defines the data shapes only — runtime, download flow, and
+ * pane wiring come in subsequent commits. See BACKLOG.md ★ multi-model
+ * section for the full design notes.
+ */
+export type ModelCategory = 'api' | 'local';
+
+export interface ModelDefinition {
+  /** Stable unique id, e.g. "anthropic.claude" or "local.llama-3.1-8b". */
+  id: string;
+  /** Human-readable name shown in the UI. */
+  name: string;
+  /** Optional one-line description. */
+  description?: string;
+  category: ModelCategory;
+  /** Provider name for grouping in UI ("Anthropic", "OpenAI", "Ollama", ...). */
+  provider: string;
+  /** Command to spawn when launching the model (PTY argv[0]).
+   * For api: typically the provider's CLI ('claude', 'gpt', ...).
+   * For local: typically a runtime wrapper ('ollama', 'llama-cli', ...). */
+  command: string;
+  /** Default args to pass after `command`. */
+  args?: string[];
+  /** For local models: where to fetch the binary/model weights. */
+  download?: {
+    url: string;
+    /** Hex SHA256 hash for integrity verification. */
+    sha256: string;
+    /** Tarball type or 'zip' / 'raw' (single file). */
+    archiveType: 'tar-gz' | 'tar-xz' | 'zip' | 'raw';
+    /** Approximate download size in bytes (for UI display). */
+    sizeBytes: number;
+  };
+  /** Optional URL of an icon (PNG/SVG) for the catalog UI. */
+  iconUrl?: string;
+}
+
+export interface ModelRegistryState {
+  /** All registered models. Order is the user's display order in the panel. */
+  models: ModelDefinition[];
+  /** ISO timestamp of last edit. */
+  updatedAt: string;
+}
+
 export interface ResourceSnapshot {
   system: {
     cpuPercent: number;
@@ -419,7 +472,8 @@ export type SessionPanelId =
   | 'lmm'
   | 'sync'
   | 'auth'
-  | 'settings';
+  | 'settings'
+  | 'models';
 
 export interface SessionState {
   version: number;

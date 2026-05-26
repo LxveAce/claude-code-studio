@@ -195,4 +195,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** Reset onboarding (for re-prompting / debug). */
     resetOnboarding: () => ipcRenderer.invoke(IPC.CLI_ONBOARDING_RESET),
   },
+  models: {
+    list: () => ipcRenderer.invoke(IPC.MODELS_LIST),
+    get: (id: string) => ipcRenderer.invoke(IPC.MODELS_GET, id),
+    add: (model: unknown) => ipcRenderer.invoke(IPC.MODELS_ADD, model),
+    update: (id: string, patch: unknown) =>
+      ipcRenderer.invoke(IPC.MODELS_UPDATE, id, patch),
+    remove: (id: string) => ipcRenderer.invoke(IPC.MODELS_REMOVE, id),
+    resetSeed: () => ipcRenderer.invoke(IPC.MODELS_RESET_SEED),
+  },
 });
