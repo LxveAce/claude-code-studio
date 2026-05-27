@@ -326,7 +326,31 @@ function SignedInBar({
 }
 
 function extractError(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  if (typeof e === 'string') return e;
-  return 'Unknown error';
+  // Octokit / GitHub-API-aware error classification (3.0.0-beta.3). Turns
+  // raw stack traces into one-line actionable messages for the most common
+  // failure modes.
+  const raw = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Unknown error';
+  // Octokit attaches status + response.data; sniff the message which
+  // already concatenates them in most cases.
+  if (/HttpError.*401|Bad credentials|401\b/i.test(raw)) {
+    return 'GitHub token rejected (401). The token may be revoked, expired, or missing scopes. Disconnect + re-add it.';
+  }
+  if (/HttpError.*403|rate limit|x-ratelimit/i.test(raw)) {
+    // Try to parse a reset epoch out of the message if present.
+    const resetMatch = raw.match(/reset(?:-?at)?[: ]+(\d{10,13})/i);
+    if (resetMatch) {
+      const epoch = parseInt(resetMatch[1], 10);
+      const ms = epoch > 1e12 ? epoch : epoch * 1000;
+      const when = new Date(ms);
+      return `GitHub rate limit hit. Resets at ${when.toLocaleTimeString()} — slow down and try again then.`;
+    }
+    return 'GitHub rate limit hit (403). Wait a few minutes or use a token with higher quota.';
+  }
+  if (/HttpError.*404|Not Found/i.test(raw)) {
+    return 'GitHub resource not found (404). Check the owner/repo names and that your token can see private repos if applicable.';
+  }
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|getaddrinfo/i.test(raw)) {
+    return 'Network error reaching GitHub. Check your connection and try again.';
+  }
+  return raw;
 }

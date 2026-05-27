@@ -29,20 +29,26 @@ const MAX_VAULTS_PER_SAMPLE = 500; // bound vault dir scan per poll
 const VAULT_NAME_RE = /^vault-[A-Za-z0-9._-]+\.json$/;
 
 // ---------------------------------------------------------------------------
-// Rates: USD per 1M tokens. EDIT THESE IN CODE IF ANTHROPIC PRICING CHANGES.
-// These are *placeholder* estimates as of agent knowledge cutoff. The whole
-// dashboard is a heuristic — actual invoiced cost will differ. Surfaced in the
-// UI with a clear "rough estimate" disclaimer.
+// Rates: USD per 1M tokens. EDIT IF ANTHROPIC PRICING CHANGES.
+// Last verified: 2026-05-27 against anthropic.com/pricing
+//   - Opus 4.x:    $15 input / $75 output per 1M
+//   - Sonnet 4.x:  $3 input / $15 output per 1M
+//   - Haiku 4.x:   $1 input / $5 output per 1M  (was $0.8/$4 — bumped May 2026)
+// The dashboard is a heuristic; actual invoiced cost will differ. We render
+// a "rough estimate" disclaimer prominently so the number isn't mistaken
+// for billing truth.
 // ---------------------------------------------------------------------------
 export const COST_RATES: CostRateTable = {
   opus: { inputPerMillion: 15, outputPerMillion: 75 },
   sonnet: { inputPerMillion: 3, outputPerMillion: 15 },
-  haiku: { inputPerMillion: 0.8, outputPerMillion: 4 },
+  haiku: { inputPerMillion: 1, outputPerMillion: 5 },
 };
 
 const COST_DISCLAIMER =
-  'Rough estimate only — model used per turn is unknown, rates are placeholders, ' +
-  'and history-only sessions lack per-call output counts. Use Anthropic console for billing.';
+  'Rough estimate only. Counts only Anthropic API usage (local models via ' +
+  'Ollama are free — never counted). Model used per turn isn\'t recorded, ' +
+  'rates assume your selected model in settings, and history-only sessions ' +
+  'lack per-call output counts. Trust anthropic.com/console for billing.';
 
 interface StateJson {
   session_id?: unknown;

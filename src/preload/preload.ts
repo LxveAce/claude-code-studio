@@ -195,4 +195,61 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** Reset onboarding (for re-prompting / debug). */
     resetOnboarding: () => ipcRenderer.invoke(IPC.CLI_ONBOARDING_RESET),
   },
+  models: {
+    list: () => ipcRenderer.invoke(IPC.MODELS_LIST),
+    get: (id: string) => ipcRenderer.invoke(IPC.MODELS_GET, id),
+    add: (model: unknown) => ipcRenderer.invoke(IPC.MODELS_ADD, model),
+    update: (id: string, patch: unknown) =>
+      ipcRenderer.invoke(IPC.MODELS_UPDATE, id, patch),
+    remove: (id: string) => ipcRenderer.invoke(IPC.MODELS_REMOVE, id),
+    resetSeed: () => ipcRenderer.invoke(IPC.MODELS_RESET_SEED),
+    recommend: (cwd?: string) =>
+      ipcRenderer.invoke(IPC.MODELS_RECOMMEND, cwd ?? null),
+    launch: (modelId: string, cwd?: string) =>
+      ipcRenderer.invoke(IPC.MODELS_LAUNCH, modelId, cwd ?? null),
+    openExternal: (url: string) => ipcRenderer.invoke(IPC.MODELS_OPEN_EXTERNAL, url),
+    popout: (paneId: string, label?: string) =>
+      ipcRenderer.invoke(IPC.MODELS_POPOUT, paneId, label ?? null),
+    onboardingGet: () => ipcRenderer.invoke(IPC.MODELS_ONBOARDING_GET),
+    onboardingMarkShown: (outcome: 'skipped' | 'completed') =>
+      ipcRenderer.invoke(IPC.MODELS_ONBOARDING_MARK_SHOWN, outcome),
+    onboardingReset: () => ipcRenderer.invoke(IPC.MODELS_ONBOARDING_RESET),
+    listRunning: () => ipcRenderer.invoke(IPC.MODELS_LIST_RUNNING),
+  },
+  ollama: {
+    version: (force = false) => ipcRenderer.invoke(IPC.OLLAMA_VERSION, force),
+    list: () => ipcRenderer.invoke(IPC.OLLAMA_LIST),
+    pullStart: (name: string) => ipcRenderer.invoke(IPC.OLLAMA_PULL_START, name),
+    pullCancel: (name: string) => ipcRenderer.invoke(IPC.OLLAMA_PULL_CANCEL, name),
+    delete: (name: string) => ipcRenderer.invoke(IPC.OLLAMA_DELETE, name),
+    onPullProgress: (callback: (evt: unknown) => void) =>
+      subscribe<[unknown]>(IPC.OLLAMA_PULL_PROGRESS, callback),
+  },
+  hardware: {
+    detect: (force = false) => ipcRenderer.invoke(IPC.HARDWARE_DETECT, force),
+  },
+  project: {
+    detect: (cwd?: string) => ipcRenderer.invoke(IPC.PROJECT_DETECT, cwd ?? null),
+  },
+  disk: {
+    info: (target?: string) => ipcRenderer.invoke(IPC.DISK_INFO, target ?? null),
+  },
+  app: {
+    version: () => ipcRenderer.invoke(IPC.APP_VERSION),
+    resetUserData: () => ipcRenderer.invoke(IPC.APP_RESET_USER_DATA),
+    openUninstaller: () => ipcRenderer.invoke(IPC.APP_OPEN_UNINSTALLER),
+  },
+  projectExplorer: {
+    listDir: (root: string, target: string) =>
+      ipcRenderer.invoke(IPC.PROJECT_LIST_DIR, root, target),
+    recentList: () => ipcRenderer.invoke(IPC.PROJECT_RECENT_LIST),
+    recentAdd: (target: string) => ipcRenderer.invoke(IPC.PROJECT_RECENT_ADD, target),
+    recentRemove: (target: string) =>
+      ipcRenderer.invoke(IPC.PROJECT_RECENT_REMOVE, target),
+  },
+  cliFlags: {
+    get: () => ipcRenderer.invoke(IPC.CLI_FLAGS_GET),
+    set: (flags: { dangerouslySkipPermissions?: boolean }) =>
+      ipcRenderer.invoke(IPC.CLI_FLAGS_SET, flags),
+  },
 });

@@ -10,6 +10,47 @@ export function StatusBar({ pid }: StatusBarProps) {
   // bits. Cleared back to null on update-downloaded (the ready badge takes
   // over) or if the updater silently aborts.
   const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
+  // Current installed version — single source of truth via app:version IPC
+  // (added 3.0.0-beta.2). Replaces the hardcoded "v2.0.0" baked into the
+  // bottom-right label, which never tracked package.json bumps.
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  // 3.0.0-beta.3 — surface current git branch + dirty state so the status
+  // bar tells the user which branch their cwd is on (was previously
+  // only visible by clicking into the GitHub panel). Polled lazily —
+  // refresh every 30s OR on focus, whichever is sooner.
+  const [gitBranch, setGitBranch] = useState<string | null>(null);
+  const [gitDirty, setGitDirty] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI.app.version()
+      .then((v) => { if (!cancelled) setAppVersion(v); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const state = await window.electronAPI.git.detect();
+        if (cancelled) return;
+        setGitBranch(state.found ? state.branch : null);
+        setGitDirty(state.found ? state.dirty : false);
+      } catch {
+        // git not on PATH / cwd not a repo — leave fields null
+      }
+    };
+    void refresh();
+    const t = setInterval(refresh, 30_000);
+    const onFocus = () => void refresh();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +110,27 @@ export function StatusBar({ pid }: StatusBarProps) {
             PID {pid}
           </span>
         )}
+        {gitBranch && (
+          <span
+            title={gitDirty ? 'Working tree has uncommitted changes' : 'Working tree clean'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 10,
+              padding: '2px 7px',
+              borderRadius: 10,
+              background: 'rgba(139, 92, 246, 0.12)',
+              border: '1px solid rgba(139, 92, 246, 0.25)',
+              color: 'var(--text-secondary)',
+              fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+            }}
+          >
+            <span style={{ fontSize: 8, opacity: 0.7 }}></span>
+            {gitBranch}
+            {gitDirty && <span style={{ color: '#fbbf24' }}>●</span>}
+          </span>
+        )}
         {pendingVersion && (
           <span
             title={`Version ${pendingVersion} will install on next launch`}
@@ -119,7 +181,7 @@ export function StatusBar({ pid }: StatusBarProps) {
           </span>
         )}
       </div>
-      <span>Claude Code Studio v2.0.0</span>
+      <span>Claude Code Studio{appVersion ? ` v${appVersion}` : ''}</span>
     </div>
   );
 }

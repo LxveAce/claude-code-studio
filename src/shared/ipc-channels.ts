@@ -112,4 +112,64 @@ export const IPC = {
   CLI_ONBOARDING_RESET: 'cli:onboarding-reset',
   /** Main → renderer: each line of npm install output during cli:install. */
   CLI_INSTALL_PROGRESS: 'cli:install-progress',
+
+  // v3.0 multi-model — catalog + Ollama lifecycle + hardware/project detection.
+  MODELS_LIST: 'models:list',
+  MODELS_GET: 'models:get',
+  MODELS_ADD: 'models:add',
+  MODELS_UPDATE: 'models:update',
+  MODELS_REMOVE: 'models:remove',
+  MODELS_RESET_SEED: 'models:reset-seed',
+  MODELS_RECOMMEND: 'models:recommend',
+  MODELS_LAUNCH: 'models:launch',
+  /** Open an allowlisted external URL related to models (license pages,
+   *  Ollama.com, HuggingFace, etc.). Separate from github:open-external
+   *  because the allowlist differs. */
+  MODELS_OPEN_EXTERNAL: 'models:open-external',
+  /** Live list of running model PTYs — rebuilds ModelsPanel's "Running"
+   *  list after a panel re-mount. Returns RunningModelPane[]. */
+  MODELS_LIST_RUNNING: 'models:list-running',
+
+  // Ollama lifecycle wrapper. Pull progress streams via OLLAMA_PULL_PROGRESS.
+  OLLAMA_VERSION: 'ollama:version',
+  OLLAMA_LIST: 'ollama:list',
+  OLLAMA_PULL_START: 'ollama:pull-start',
+  OLLAMA_PULL_CANCEL: 'ollama:pull-cancel',
+  OLLAMA_DELETE: 'ollama:delete',
+  /** Main → renderer: each parsed line of `ollama pull` progress. */
+  OLLAMA_PULL_PROGRESS: 'ollama:pull-progress',
+
+  // App metadata + lifecycle.
+  APP_VERSION: 'app:version',
+  /** Wipe all user data JSON (settings, registries, history, auth) and
+   *  relaunch the app fresh. Does NOT uninstall the binary — see APP_OPEN_UNINSTALLER. */
+  APP_RESET_USER_DATA: 'app:reset-user-data',
+  /** Spawn the platform uninstaller (NSIS on Windows). */
+  APP_OPEN_UNINSTALLER: 'app:open-uninstaller',
+
+  // File / project explorer (3.0.0-beta.3).
+  PROJECT_LIST_DIR: 'project:list-dir',
+  PROJECT_RECENT_LIST: 'project:recent-list',
+  PROJECT_RECENT_ADD: 'project:recent-add',
+  PROJECT_RECENT_REMOVE: 'project:recent-remove',
+
+  // Claude CLI auto-flags (3.0.0-beta.3 — --dangerously-skip-permissions toggle).
+  CLI_FLAGS_GET: 'cli:flags-get',
+  CLI_FLAGS_SET: 'cli:flags-set',
+
+  // Hardware + project detection.
+  HARDWARE_DETECT: 'hardware:detect',
+  PROJECT_DETECT: 'project:detect',
+  /** Probe available + total disk bytes at a path (or the Ollama models dir). */
+  DISK_INFO: 'disk:info',
+
+  // First-run model picker persistence.
+  MODELS_ONBOARDING_GET: 'models:onboarding-get',
+  MODELS_ONBOARDING_MARK_SHOWN: 'models:onboarding-mark-shown',
+  MODELS_ONBOARDING_RESET: 'models:onboarding-reset',
+
+  /** Open a new BrowserWindow that renders only a terminal for the given
+   *  paneId — the "pop out a model" flow. paneId must already exist
+   *  (created by MODELS_LAUNCH); the new window simply attaches. */
+  MODELS_POPOUT: 'models:popout',
 } as const;

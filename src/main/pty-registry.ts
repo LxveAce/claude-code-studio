@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { PtyManager } from './pty-manager';
+import { PtyManager, type PtySpawnOpts } from './pty-manager';
 
 /**
  * Per-pane PTY registry.
@@ -11,8 +11,15 @@ import { PtyManager } from './pty-manager';
  * Forwarded events are decorated with the originating paneId so the renderer
  * can route them to the correct xterm instance.
  */
+/** Resource-monitor bucket a pane's PTY contributes to. Added in
+ *  3.0.0-beta.3 so the monitor can split RAM/CPU by category. */
+export type PaneCategory = 'claude' | 'model' | 'other';
+
 export class PtyRegistry extends EventEmitter {
   private panes = new Map<string, PtyManager>();
+  /** Per-pane category — set at spawn time. Defaults to 'claude' for
+   *  the existing terminal flow (no opts.command → spawns claude). */
+  private paneCategory = new Map<string, PaneCategory>();
   /** Tracks per-pane listeners so dispose is symmetric (no leaks on close).
    *  Renamed from `listeners` to avoid clobbering the EventEmitter method. */
   private paneListeners = new Map<
@@ -57,6 +64,34 @@ export class PtyRegistry extends EventEmitter {
     return out;
   }
 
+  /** PIDs of panes in the given category (alive only). */
+  pidsByCategory(category: PaneCategory): number[] {
+    const out: number[] = [];
+    for (const [paneId, mgr] of this.panes) {
+      if (mgr.pid <= 0) continue;
+      const cat = this.paneCategory.get(paneId) ?? 'claude';
+      if (cat === category) out.push(mgr.pid);
+    }
+    return out;
+  }
+
+  /** Live listing of running model panes — used by ModelsPanel to rebuild
+   *  its "Running" list after a panel re-mount. */
+  listModelPanes(): Array<{
+    paneId: string;
+    pid: number;
+    commandLine: string;
+  }> {
+    const out: Array<{ paneId: string; pid: number; commandLine: string }> = [];
+    for (const [paneId, mgr] of this.panes) {
+      if (mgr.pid <= 0) continue;
+      const cat = this.paneCategory.get(paneId) ?? 'claude';
+      if (cat !== 'model') continue;
+      out.push({ paneId, pid: mgr.pid, commandLine: mgr.commandLine });
+    }
+    return out;
+  }
+
   /**
    * Spawn a PTY for `paneId`, OR re-emit `ready` if one is already alive.
    *
@@ -73,7 +108,15 @@ export class PtyRegistry extends EventEmitter {
    *
    * Returns `true` if a NEW PTY was created, `false` if we reattached.
    */
-  spawn(paneId: string, cwd?: string): boolean {
+  /**
+   * Annotate the pane's category for ResourceMonitor bucketing. Called by
+   * setupTerminal (default 'claude') and by MODELS_LAUNCH ('model'). Idempotent.
+   */
+  setPaneCategory(paneId: string, category: PaneCategory): void {
+    this.paneCategory.set(paneId, category);
+  }
+
+  spawn(paneId: string, cwd?: string, opts?: PtySpawnOpts): boolean {
     if (!PtyRegistry.isValidPaneId(paneId)) {
       throw new Error(`Invalid paneId: ${String(paneId)}`);
     }
@@ -109,13 +152,18 @@ export class PtyRegistry extends EventEmitter {
     this.paneListeners.set(paneId, { onData, onExit, onReady });
 
     try {
-      mgr.spawn(cwd);
+      mgr.spawn(cwd, opts);
     } catch (e) {
       // Roll back map entries on spawn failure so a future spawn(paneId) works.
       this.dispose(paneId);
       throw e;
     }
     return true;
+  }
+
+  /** Resolved command-line for a pane, or empty string if not spawned. */
+  commandLineFor(paneId: string): string {
+    return this.panes.get(paneId)?.commandLine ?? '';
   }
 
   write(paneId: string, data: string): void {
@@ -161,5 +209,6 @@ export class PtyRegistry extends EventEmitter {
     }
     this.panes.delete(paneId);
     this.paneListeners.delete(paneId);
+    this.paneCategory.delete(paneId);
   }
 }

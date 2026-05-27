@@ -72,6 +72,46 @@ export function ResourcePanel() {
           value={`${snapshot.claude.ramMB} MB`}
         />
       </div>
+
+      {/* 3.0.0-beta.3 — separate per-bucket stats so the user sees
+          Claude RAM vs local-model RAM vs Ollama daemon RAM without
+          everything aggregating into the "Claude" gauge. Rendered only
+          when there's something to show in that bucket. */}
+      {snapshot.models && snapshot.models.pidCount > 0 && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+          marginTop: 8,
+        }}>
+          <MiniStat
+            label="Model PTYs"
+            value={String(snapshot.models.pidCount)}
+          />
+          <MiniStat
+            label="Model Memory"
+            value={`${snapshot.models.ramMB} MB`}
+          />
+        </div>
+      )}
+
+      {snapshot.ollama && snapshot.ollama.present && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+          marginTop: 8,
+        }}>
+          <MiniStat
+            label={`Ollama (${snapshot.ollama.runnerCount} loaded)`}
+            value={`${snapshot.ollama.pidCount} pids`}
+          />
+          <MiniStat
+            label="Ollama Memory"
+            value={`${snapshot.ollama.ramMB} MB`}
+          />
+        </div>
+      )}
     </div>
   );
 }

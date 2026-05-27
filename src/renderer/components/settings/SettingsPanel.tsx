@@ -21,6 +21,17 @@ function hexToRgb(hex: string): string {
 export function SettingsPanel() {
   const [activeTheme, setActiveTheme] = useState('Purple');
   const [hoveredTheme, setHoveredTheme] = useState<string | null>(null);
+  // Version sourced from main app.getVersion() — same IPC the title bar uses,
+  // so the About row, title bar, and status bar always match. Was hardcoded
+  // "2.0.0" pre-3.0.0-beta.3, which drifted from the actual package.json.
+  const [appVersionLabel, setAppVersionLabel] = useState<string>('loading…');
+  useEffect(() => {
+    let alive = true;
+    void window.electronAPI.app.version()
+      .then((v) => { if (alive) setAppVersionLabel(v); })
+      .catch(() => { if (alive) setAppVersionLabel('unknown'); });
+    return () => { alive = false; };
+  }, []);
   const [notif, setNotif] = useState<NotificationSettings | null>(null);
   const [notifSupported, setNotifSupported] = useState(true);
   const [notifError, setNotifError] = useState<string | null>(null);
@@ -607,7 +618,11 @@ export function SettingsPanel() {
         >
           Re-show CLI onboarding
         </button>
+
+        <ClaudeCliFlagsSection />
       </div>
+
+      <DangerZoneSection />
 
       {/* About */}
       <div style={{
@@ -626,10 +641,209 @@ export function SettingsPanel() {
         }}>
           About
         </div>
-        <SettingRow label="App Version" value="2.0.0" />
+        <SettingRow label="App Version" value={appVersionLabel} />
         <SettingRow label="Electron" value="42.2.0" />
         <SettingRow label="React" value="19.x" />
         <SettingRow label="Author" value="LxveAce" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Claude CLI auto-flag toggles (3.0.0-beta.3).
+ *
+ * Surfaces user-toggleable flags that get auto-injected into every Claude
+ * PTY at spawn time. Currently just --dangerously-skip-permissions, which
+ * bypasses Claude's per-action permission prompts. Persisted via
+ * cli-flags.json in main; PtyManager reads at spawn.
+ *
+ * Why a separate section: this is power-user, footgun-y stuff. Lumping it
+ * with the onboarding reset would imply "casual setting" — it isn't.
+ */
+function ClaudeCliFlagsSection() {
+  const [flags, setFlags] = React.useState<{ dangerouslySkipPermissions: boolean } | null>(null);
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    void window.electronAPI.cliFlags.get().then((f) => {
+      if (alive) setFlags(f);
+    }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+
+  const handleToggle = async () => {
+    if (!flags || busy) return;
+    setBusy(true);
+    try {
+      const next = await window.electronAPI.cliFlags.set({
+        dangerouslySkipPermissions: !flags.dangerouslySkipPermissions,
+      });
+      setFlags(next);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!flags) return null;
+  return (
+    <div style={{
+      marginTop: 14,
+      padding: '10px 12px',
+      background: flags.dangerouslySkipPermissions ? 'rgba(251, 191, 36, 0.08)' : 'rgba(0,0,0,0.15)',
+      border: '1px solid ' + (flags.dangerouslySkipPermissions ? 'rgba(251, 191, 36, 0.3)' : 'var(--border)'),
+      borderRadius: 6,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>
+            Auto-enable <code>--dangerously-skip-permissions</code>
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+            When on, the Claude CLI spawns with permission prompts bypassed —
+            file edits and tool calls happen without confirmation. Only enable
+            in trusted projects you control. Applies on the next terminal
+            spawn or restart. Local models are never affected.
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleToggle}
+          disabled={busy}
+          style={{
+            background: flags.dangerouslySkipPermissions ? '#fbbf24' : 'transparent',
+            border: '1px solid ' + (flags.dangerouslySkipPermissions ? '#fbbf24' : 'var(--border)'),
+            color: flags.dangerouslySkipPermissions ? '#0f172a' : 'var(--text-primary)',
+            padding: '6px 14px',
+            fontSize: 11,
+            borderRadius: 6,
+            cursor: busy ? 'wait' : 'pointer',
+            fontWeight: 600,
+            minWidth: 64,
+          }}
+        >
+          {flags.dangerouslySkipPermissions ? 'ON' : 'OFF'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Danger Zone (3.0.0-beta.3) — easier uninstall surface.
+ *
+ *  - "Reset user data" wipes all the JSON files Claude Code Studio wrote
+ *    (settings, history, registries, debug logs) without uninstalling the
+ *    binary. Useful for "start fresh without touching Windows Settings".
+ *
+ *  - "Uninstall Claude Code Studio" spawns the NSIS uninstaller and quits
+ *    the app. Windows-only; on macOS/Linux it surfaces an error and the
+ *    user uses the platform's app manager.
+ *
+ * Reset is irreversible — confirms first. Uninstall is platform-conditional.
+ */
+function DangerZoneSection() {
+  const [busyReset, setBusyReset] = React.useState(false);
+  const [busyUninstall, setBusyUninstall] = React.useState(false);
+  const [confirmReset, setConfirmReset] = React.useState(false);
+
+  const handleReset = async () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      return;
+    }
+    setBusyReset(true);
+    try {
+      const result = await window.electronAPI.app.resetUserData();
+      const msg = result.ok
+        ? `Wiped ${result.removed.length} file(s). Quit and reopen Claude Code Studio to start fresh.`
+        : `Wiped ${result.removed.length}; ${result.failed.length} couldn't be removed. Check %APPDATA%\\Claude Code Studio.`;
+      alert(msg);
+    } catch (e) {
+      alert(`Reset failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusyReset(false);
+      setConfirmReset(false);
+    }
+  };
+
+  const handleUninstall = async () => {
+    if (!confirm('Launch the Claude Code Studio uninstaller? On Windows the app will close immediately; on macOS / Linux you\'ll see instructions for completing the uninstall manually.')) return;
+    setBusyUninstall(true);
+    try {
+      const result = await window.electronAPI.app.openUninstaller();
+      if (!result.ok) {
+        alert(`Uninstall couldn't start: ${result.error ?? 'unknown error'}`);
+      } else if (result.notice) {
+        // macOS / Linux path — surfaces platform-specific manual steps.
+        alert(result.notice);
+      }
+      // Windows path: ok && !notice → uninstaller spawned + app quits. No alert.
+    } catch (e) {
+      alert(`Uninstall couldn't start: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusyUninstall(false);
+    }
+  };
+
+  return (
+    <div style={{
+      padding: '14px 16px',
+      background: 'rgba(239, 68, 68, 0.06)',
+      borderRadius: 'var(--radius-md)',
+      border: '1px solid rgba(239, 68, 68, 0.25)',
+    }}>
+      <div style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#fca5a5',
+        marginBottom: 8,
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+      }}>
+        Danger Zone
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+        Irreversible actions. The Reset button wipes settings, history,
+        registries, and debug logs (the JSON files Studio wrote) without
+        removing the binary — handy if the app misbehaves. The Uninstall
+        button launches the platform uninstaller and quits the app.
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={handleReset}
+          disabled={busyReset}
+          style={{
+            background: confirmReset ? '#ef4444' : 'transparent',
+            border: '1px solid #ef4444',
+            color: confirmReset ? '#fff' : '#fca5a5',
+            padding: '6px 14px',
+            fontSize: 11,
+            borderRadius: 6,
+            cursor: busyReset ? 'wait' : 'pointer',
+            fontWeight: confirmReset ? 600 : 400,
+          }}
+        >
+          {busyReset ? 'Wiping…' : confirmReset ? 'Click again to confirm' : 'Reset user data'}
+        </button>
+        <button
+          type="button"
+          onClick={handleUninstall}
+          disabled={busyUninstall}
+          style={{
+            background: 'transparent',
+            border: '1px solid #ef4444',
+            color: '#fca5a5',
+            padding: '6px 14px',
+            fontSize: 11,
+            borderRadius: 6,
+            cursor: busyUninstall ? 'wait' : 'pointer',
+          }}
+        >
+          {busyUninstall ? 'Launching…' : 'Uninstall Claude Code Studio'}
+        </button>
       </div>
     </div>
   );

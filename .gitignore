@@ -4,3 +4,7 @@ out/
 dist/
 .claude/worktrees/
 src/renderer/dist/
+
+# Local pre-change snapshots produced before risky edits. Per-user safety net,
+# not source code — never push.
+_backups/

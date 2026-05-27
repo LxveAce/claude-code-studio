@@ -13,6 +13,9 @@ import { SyncPanel } from './components/sync/SyncPanel';
 import { CostPanel } from './components/cost/CostPanel';
 import { CommandPalette } from './components/palette/CommandPalette';
 import { CliAuthOnboarding } from './components/auth/CliAuthOnboarding';
+import { ModelsPanel } from './components/models/ModelsPanel';
+import { PopoutView } from './components/models/PopoutView';
+import { FileTreePanel } from './components/project/FileTreePanel';
 import {
   SplitLayout,
   splitPane,
@@ -38,7 +41,9 @@ export type SidebarPanel =
   | 'lmm'
   | 'sync'
   | 'auth'
-  | 'settings';
+  | 'settings'
+  | 'models'   // v3.0 multi-model scaffold
+  | 'files';   // 3.0.0-beta.3 file directory navigator
 
 const DEFAULT_LAYOUT: SplitNode = {
   type: 'pane',
@@ -47,6 +52,22 @@ const DEFAULT_LAYOUT: SplitNode = {
 };
 
 export function App() {
+  // Pop-out window short-circuit. When this renderer is the child of a
+  // models:popout BrowserWindow it loads with ?popout=<paneId>&label=<name>
+  // — render only the terminal for that paneId, skip the full app shell.
+  // Computed before any other hooks so the popout window doesn't waste
+  // cycles on session/hotkey/auth wiring.
+  const popoutParams = (() => {
+    if (typeof window === 'undefined') return null;
+    const sp = new URLSearchParams(window.location.search);
+    const paneId = sp.get('popout');
+    if (!paneId) return null;
+    return { paneId, label: sp.get('label') ?? 'Model' };
+  })();
+  if (popoutParams) {
+    return <PopoutView paneId={popoutParams.paneId} label={popoutParams.label} />;
+  }
+
   const [hydrated, setHydrated] = useState(false);
   const [activePanel, setActivePanel] = useState<SidebarPanel>('terminal');
   const [layout, setLayout] = useState<SplitNode>(DEFAULT_LAYOUT);
@@ -422,12 +443,17 @@ export function App() {
         <CliAuthOnboarding
           onClose={() => setCliOnboardingOpen(false)}
           sendToActivePane={(text) => {
-            // "Sign in to Claude" types `claude login` into the active
-            // pane. Switch to the terminal first so the user sees the
-            // CLI's OAuth prompts. `submit: true` makes sendToActive
-            // append a real CR after the command — without it the text
-            // appears typed but the command never runs (PTY readline
-            // needs CR, not LF, to register Enter).
+            // "Sign in to Claude" types `/login` (Claude's in-session
+            // slash command) into the active pane. The embedded PTY
+            // auto-spawns Claude, so the active pane is always a running
+            // Claude session — `/login` triggers the browser OAuth flow
+            // from inside that session. Typing `claude login` (the bare
+            // shell command) here would be treated as chat text and
+            // Claude would reply "I notice you typed claude login as a
+            // message…" — exactly the bug caught in 3.0.0-beta.1.
+            //
+            // submit=true appends CR so Claude executes the slash command
+            // immediately. Without CR the text appears typed but inert.
             setActivePanel('terminal');
             sendToActive(text, true);
           }}
@@ -468,6 +494,10 @@ function RightPanel({
       return <AuthPanel />;
     case 'sync':
       return <SyncPanel />;
+    case 'models':
+      return <ModelsPanel />;
+    case 'files':
+      return <FileTreePanel />;
     default:
       return <PlaceholderPanel panel={panel} />;
   }

@@ -106,12 +106,21 @@ export function CliAuthOnboarding({ onClose, sendToActivePane }: Props) {
   };
 
   const handleLoginInTerminal = () => {
-    // Type `claude login` into the active pane. App.tsx wires the
-    // sendToActivePane callback to switch the active panel to terminal
-    // first and then call sendToActive(text, submit=true) which appends
-    // the proper CR to actually submit the command. Sending bare text
-    // (no \r) lets the App-side helper do the CR sanitization correctly.
-    sendToActivePane('claude login');
+    // Send the in-session slash command `/login` rather than `claude login`.
+    //
+    // Why this matters (caught during 3.0.0-beta.1 testing):
+    // The embedded PTY auto-spawns `claude` as soon as it opens, so the
+    // active pane is ALWAYS a running Claude session, never a bare shell
+    // prompt. Typing `claude login` into a running Claude session is just
+    // user chat text — Claude responds "I notice you typed claude login as
+    // a message rather than as a shell command." `/login` is Claude's
+    // built-in slash command that opens the browser-based OAuth flow from
+    // within the running session, which is what we actually want.
+    //
+    // App.tsx wires sendToActivePane to:
+    //   1. Switch the active panel to 'terminal' so the user sees the flow
+    //   2. Append CR (submit=true) so Claude executes the slash command
+    sendToActivePane('/login');
   };
 
   const handleDismiss = async (markComplete: boolean) => {
@@ -281,9 +290,11 @@ export function CliAuthOnboarding({ onClose, sendToActivePane }: Props) {
               Step {status.installed && installResult?.ok ? '2' : '1'} — Sign in to Claude
             </h3>
             <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-              Click below and Studio will type <code>claude login</code> into
-              the terminal for you. The CLI will open your browser to complete
-              sign-in.
+              Click below and Studio will type <code>/login</code> into the
+              running Claude session in the embedded terminal. Claude's
+              built-in <code>/login</code> opens your browser to complete
+              sign-in. If you'd rather type it yourself, just run{' '}
+              <code>/login</code> in the terminal.
             </p>
             <button
               type="button"

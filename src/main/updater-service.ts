@@ -117,6 +117,19 @@ export class UpdaterService {
       return this.getState();
     }
 
+    // GATE 4 — beta builds skip auto-update entirely. Added 3.0.0-beta.3
+    // after the beta.2 install repeatedly fired the auto-updater against
+    // the public repo's latest published release (v1.0.0), which lacks a
+    // `latest.yml` asset → unhandled 404 stack trace in the user's logs.
+    // Beta builds aren't in the GitHub release feed at all, so the only
+    // correct behavior is to not check. UI shows the version as "beta"
+    // and prompts manual install from the testing repo if needed.
+    if (/-beta\./i.test(app.getVersion())) {
+      this.state.inactiveReason = 'disabled';
+      this.state.lastError = 'Auto-update disabled for beta builds (install new betas manually).';
+      return this.getState();
+    }
+
     try {
       // Dynamic require so dev mode and unsupported-platform paths don't
       // need the module on disk during typecheck or first-run launches.

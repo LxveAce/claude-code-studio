@@ -26,6 +26,279 @@ export interface CliOnboardingState {
   completedAt: number | null;
 }
 
+/**
+ * v3.0 multi-model scaffold types.
+ *
+ * Two categories of model the app can run side-by-side:
+ *   - 'api': inference happens on a remote server (Anthropic, OpenAI, …).
+ *           Local cost is just network + render. Auth per-provider.
+ *   - 'local': inference happens on the user's hardware. Binary is
+ *           downloaded once + cached in <userData>/models/<id>/, then
+ *           launched via a runtime (llama.cpp / ollama / custom).
+ *
+ * This file defines the data shapes only — runtime, download flow, and
+ * pane wiring come in subsequent commits. See BACKLOG.md ★ multi-model
+ * section for the full design notes.
+ */
+export type ModelCategory = 'api' | 'local';
+
+/**
+ * Hardware tier sweet-spot for Q4_K_M. Used by both the catalog
+ * (which tiers does this model target?) and the hardware detector
+ * (what tier is the host machine?). See src/main/hardware-detection.ts.
+ */
+export type HardwareTier = 'toaster' | 'low' | 'mid' | 'high' | 'workstation';
+
+/**
+ * Catalog-side use-case tags. Multi-select per model so a polyglot
+ * coder can advertise both 'frontend' and 'backend'. Kept loose to
+ * accommodate new categories without a schema bump.
+ */
+export type ModelRole =
+  | 'general-chat'
+  | 'frontend'
+  | 'backend'
+  | 'polyglot-code'
+  | 'reasoning'
+  | 'vision'
+  | 'long-context'
+  | 'edge'
+  | 'embedding'
+  | 'agentic'
+  | 'data';
+
+export interface ModelDefinition {
+  /** Stable unique id, e.g. "anthropic.claude" or "local.llama-3.1-8b". */
+  id: string;
+  /** Human-readable name shown in the UI. */
+  name: string;
+  /** Optional one-line description. */
+  description?: string;
+  category: ModelCategory;
+  /** Provider name for grouping in UI ("Anthropic", "OpenAI", "Ollama", ...). */
+  provider: string;
+  /** Command to spawn when launching the model (PTY argv[0]).
+   * For api: typically the provider's CLI ('claude', 'gpt', ...).
+   * For local: typically a runtime wrapper ('ollama', 'llama-cli', ...). */
+  command: string;
+  /** Default args to pass after `command`. */
+  args?: string[];
+
+  // --- Catalog metadata (full-scope expansion, May 2026). ---
+  // All fields below are optional so the registry stays backward-compatible
+  // with seed scaffolds that shipped before the catalog rebuild.
+
+  /** Exact `ollama pull <name>` string for local Ollama models. */
+  ollamaName?: string;
+  /** Hugging Face repo path (org/name) if relevant. */
+  huggingfaceName?: string;
+  /** Parameter count in billions. */
+  paramsB?: number;
+  /** 'dense' for standard transformers; 'moe' for mixture-of-experts. */
+  architecture?: 'dense' | 'moe';
+  /** Active parameter count for MoE models (billions). */
+  activeParamsB?: number;
+  /** Recommended GGUF quant (Q4_K_M, Q5_K_M, etc.). */
+  recommendedQuant?: string;
+  /** Approximate VRAM needed at recommended quant + small context (GB). */
+  vramGB?: number;
+  /** Approximate system RAM for CPU offload at recommended quant (GB). */
+  ramGB?: number;
+  /** Native context length in tokens (e.g. 128000). */
+  contextTokens?: number;
+  /** Human-readable license name (e.g. "Apache 2.0", "Llama Community"). */
+  license?: string;
+  /**
+   * True when license has commercial-use restrictions worth showing the
+   * user a "Read license" link before pulling (Llama, Gemma, BigCode).
+   */
+  licenseFlag?: boolean;
+  /** URL to the license/terms page (shown when licenseFlag is set). */
+  licenseUrl?: string;
+  /** Release date in YYYY-MM form. */
+  releaseDate?: string;
+  /** Use-case tags this model is good at. Multi-select. */
+  roles?: ModelRole[];
+  /** Hardware tiers this model realistically targets at recommended quant. */
+  hardwareTiers?: HardwareTier[];
+  /** 1-3 short phrases on what it's actually good at. */
+  strengths?: string[];
+  /** 1-2 short phrases on notable weaknesses (honest, not promotional). */
+  weaknesses?: string[];
+  /** 1-2 sentences of concrete "use this if…" guidance. */
+  recommendedFor?: string;
+  /**
+   * Featured in the "Recommended" section of the catalog. Reserved for
+   * consensus-best picks in their tier per the research report.
+   */
+  featured?: boolean;
+  /** Short marketing-style badge (e.g. "Best 7B coder", "New in 2026"). */
+  badge?: string;
+  /** For local models: where to fetch the binary/model weights. */
+  download?: {
+    url: string;
+    /** Hex SHA256 hash for integrity verification. */
+    sha256: string;
+    /** Tarball type or 'zip' / 'raw' (single file). */
+    archiveType: 'tar-gz' | 'tar-xz' | 'zip' | 'raw';
+    /** Approximate download size in bytes (for UI display). */
+    sizeBytes: number;
+  };
+  /** Optional URL of an icon (PNG/SVG) for the catalog UI. */
+  iconUrl?: string;
+}
+
+// --- Ollama / hardware / project IPC payload shapes ---
+
+export interface OllamaInstalledModel {
+  name: string;
+  id: string;
+  sizeBytes: number;
+  modifiedAt: string;
+}
+
+export interface OllamaVersionInfo {
+  installed: boolean;
+  cliPath: string | null;
+  version: string | null;
+  daemonReachable: boolean;
+  reason: 'not-found' | 'daemon-unreachable' | 'ok' | 'unknown-error';
+  lastError: string | null;
+}
+
+export interface OllamaPullProgressEvent {
+  modelName: string;
+  percent: number | null;
+  status: string;
+  bytesCompleted: number | null;
+  bytesTotal: number | null;
+}
+
+export interface HardwareProfile {
+  cpu: { model: string; physicalCores: number; logicalCores: number };
+  ramGB: number;
+  gpus: Array<{ name: string; vendor: string; vramGB: number | null }>;
+  maxVramGB: number;
+  totalVramGB: number;
+  tier: HardwareTier;
+  summary: string;
+  platform: 'win32' | 'darwin' | 'linux' | 'other';
+  detectedAt: string;
+}
+
+export type ProjectRole =
+  | 'frontend'
+  | 'backend'
+  | 'systems'
+  | 'data'
+  | 'mobile'
+  | 'devops'
+  | 'general';
+
+export interface ProjectFingerprint {
+  cwd: string;
+  detectedLanguages: string[];
+  roles: ProjectRole[];
+  signals: string[];
+}
+
+export interface ModelRecommendation {
+  modelId: string;
+  /** 0..1 confidence — higher = stronger match for hardware+project. */
+  score: number;
+  /** Short human-readable reason ("Best 7B coder for your frontend project"). */
+  reason: string;
+}
+
+export interface ModelLaunchResult {
+  ok: boolean;
+  paneId: string | null;
+  /** For local models: the resolved command line that was spawned (for UI display). */
+  commandLine: string | null;
+  error: string | null;
+}
+
+export interface DiskInfo {
+  path: string;
+  freeBytes: number | null;
+  totalBytes: number | null;
+  ok: boolean;
+  error: string | null;
+}
+
+export type ModelsOnboardingOutcome = 'skipped' | 'completed';
+
+export interface ModelsOnboardingState {
+  shown: boolean;
+  outcome: ModelsOnboardingOutcome | null;
+  completedAt: string | null;
+}
+
+export interface ModelPopoutResult {
+  ok: boolean;
+  windowId: number | null;
+  error: string | null;
+}
+
+// --- File / project explorer (3.0.0-beta.3) ---
+
+export interface DirEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'dir' | 'symlink' | 'other';
+  size: number;
+  modified: string;
+  hidden: boolean;
+}
+
+export interface DirListing {
+  root: string;
+  path: string;
+  truncated: boolean;
+  totalEntries: number;
+  entries: DirEntry[];
+  error: 'not-found' | 'not-a-directory' | 'access-denied' | 'outside-root' | null;
+}
+
+export interface RecentProject {
+  path: string;
+  addedAt: string;
+  label: string;
+}
+
+// --- CLI flags (3.0.0-beta.3) ---
+
+export interface CliFlags {
+  /** When true, the Claude PTY launches with --dangerously-skip-permissions.
+   *  Bypasses permission prompts. Convenient in trusted projects only. */
+  dangerouslySkipPermissions: boolean;
+}
+
+// --- App reset (3.0.0-beta.3) ---
+
+export interface AppResetResult {
+  ok: boolean;
+  /** Files that were removed (relative to userData). */
+  removed: string[];
+  /** Files that couldn't be removed (with error reasons). */
+  failed: Array<{ file: string; error: string }>;
+}
+
+/** Live snapshot of a currently-running model PTY — used by ModelsPanel
+ *  to rebuild its "Running" list after a tab switch / panel re-mount. */
+export interface RunningModelPane {
+  paneId: string;
+  pid: number;
+  commandLine: string;
+}
+
+export interface ModelRegistryState {
+  /** All registered models. Order is the user's display order in the panel. */
+  models: ModelDefinition[];
+  /** ISO timestamp of last edit. */
+  updatedAt: string;
+}
+
 export interface ResourceSnapshot {
   system: {
     cpuPercent: number;
@@ -34,11 +307,35 @@ export interface ResourceSnapshot {
     ramTotalGB: number;
     gpuPercent: number | null;
   };
+  /** Claude CLI PTYs (the original terminal flow). */
   claude: {
     cpuPercent: number;
     ramPercent: number;
     ramMB: number;
     pidCount: number;
+  };
+  /**
+   * Local-model PTYs launched via MODELS_LAUNCH (typically `ollama run X`).
+   * Added in 3.0.0-beta.3 — backward-compatible: older renderers that
+   * only read `system` + `claude` still work.
+   */
+  models?: {
+    cpuPercent: number;
+    ramMB: number;
+    pidCount: number;
+  };
+  /**
+   * The persistent Ollama daemon + its model-loader children, if Ollama
+   * is installed and running. Found via process-name scan each poll.
+   */
+  ollama?: {
+    present: boolean;
+    cpuPercent: number;
+    ramMB: number;
+    pidCount: number;
+    /** Number of `ollama runner` / `llama-server` children — i.e.,
+     *  currently-loaded models. 0 means daemon is idle. */
+    runnerCount: number;
   };
   timestamp: number;
 }
@@ -419,7 +716,9 @@ export type SessionPanelId =
   | 'lmm'
   | 'sync'
   | 'auth'
-  | 'settings';
+  | 'settings'
+  | 'models'
+  | 'files';
 
 export interface SessionState {
   version: number;

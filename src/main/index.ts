@@ -16,8 +16,29 @@ import { HotkeysService } from './hotkeys-service';
 import { TrayService } from './tray-service';
 import { CostService } from './cost-service';
 import { CliService } from './cli-service';
+import { ModelRegistry } from './model-registry';
+import { OllamaService, type OllamaPullProgressEvent } from './ollama-service';
+import { detectHardware } from './hardware-detection';
+import { detectProject } from './project-language-detect';
+import { probeDisk } from './disk-info';
+import { FirstRunService } from './first-run-service';
+import { readCliFlags, writeCliFlags, type CliFlags } from './cli-flags';
+import {
+  listDir as projectListDir,
+  readRecentProjects,
+  addRecentProject,
+  removeRecentProject,
+} from './project-explorer';
+import { spawn as childSpawn } from 'node:child_process';
+import * as nodeFs from 'node:fs';
+import * as nodeFsp from 'node:fs/promises';
 import { IPC } from '../shared/ipc-channels';
-import type { HotkeyAction } from '../shared/types';
+import type {
+  HotkeyAction,
+  ModelDefinition,
+  ModelLaunchResult,
+  ModelPopoutResult,
+} from '../shared/types';
 
 if (require('electron-squirrel-startup')) {
   app.quit();
@@ -27,6 +48,9 @@ declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 let mainWindow: BrowserWindow | null = null;
+/** Pop-out BrowserWindows keyed by paneId so we can close them when the main
+ *  window closes (and detect "already popped out" attempts to focus instead). */
+const popoutWindows = new Map<string, BrowserWindow>();
 const ptyRegistry = new PtyRegistry();
 const resourceMonitor = new ResourceMonitor();
 const compactController = new CompactController();
@@ -229,7 +253,16 @@ function safeSend(channel: string, ...args: unknown[]) {
 }
 
 function syncResourcePids() {
-  resourceMonitor.setClaudePids(ptyRegistry.allPids());
+  // 3.0.0-beta.3: split by category so the Resources panel can show
+  // Claude RAM vs model RAM as separate gauges instead of one aggregated
+  // "Claude" number that grew silently when the user launched a model.
+  // Falls back to legacy behavior if the registry doesn't know the
+  // category (treats unknowns as 'claude' — preserves pre-beta.3
+  // accounting).
+  resourceMonitor.setTrackedPids(
+    ptyRegistry.pidsByCategory('claude'),
+    ptyRegistry.pidsByCategory('model')
+  );
 }
 
 function setupTerminal() {
@@ -301,6 +334,10 @@ function setupTerminal() {
       }
       const safeCwd =
         typeof cwd === 'string' && cwd.length > 0 && cwd.length <= 4096 ? cwd : undefined;
+      // Default terminal-pane spawn = Claude PTY → categorize for the
+      // ResourceMonitor's claude bucket. Model PTYs spawned via
+      // MODELS_LAUNCH explicitly set category='model' instead.
+      ptyRegistry.setPaneCategory(paneId, 'claude');
       ptyRegistry.spawn(paneId, safeCwd);
       return true;
     }
@@ -349,6 +386,428 @@ function setupCli() {
   ipcMain.handle(IPC.CLI_ONBOARDING_GET, () => getCli().getOnboardingState());
   ipcMain.handle(IPC.CLI_ONBOARDING_COMPLETE, () => getCli().setOnboardingComplete());
   ipcMain.handle(IPC.CLI_ONBOARDING_RESET, () => getCli().resetOnboarding());
+}
+
+function setupModels() {
+  // v3.0 multi-model — catalog + recommend + launch. The catalog seed
+  // lives in model-catalog-seed.ts; recommend() ranks against the host's
+  // hardware tier + the cwd's project fingerprint.
+  const reg = ModelRegistry.instance();
+  ipcMain.handle(IPC.MODELS_LIST, () => reg.list());
+  ipcMain.handle(IPC.MODELS_GET, (_event, id: unknown) => {
+    if (typeof id !== 'string') return null;
+    return reg.get(id);
+  });
+  ipcMain.handle(IPC.MODELS_ADD, (_event, model: unknown) => {
+    return reg.add(model as ModelDefinition);
+  });
+  ipcMain.handle(IPC.MODELS_UPDATE, (_event, id: unknown, patch: unknown) => {
+    if (typeof id !== 'string') throw new Error('model id must be string');
+    return reg.update(id, patch as Partial<ModelDefinition>);
+  });
+  ipcMain.handle(IPC.MODELS_REMOVE, (_event, id: unknown) => {
+    if (typeof id !== 'string') throw new Error('model id must be string');
+    return reg.remove(id);
+  });
+  ipcMain.handle(IPC.MODELS_RESET_SEED, () => reg.resetToSeed());
+
+  ipcMain.handle(IPC.MODELS_OPEN_EXTERNAL, (_event, url: unknown) => {
+    if (typeof url !== 'string') return false;
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    // Model-related allowlist: official license sources + model registries.
+    const allowed =
+      host === 'ollama.com' ||
+      host.endsWith('.ollama.com') ||
+      host === 'huggingface.co' ||
+      host.endsWith('.huggingface.co') ||
+      host === 'ai.google.dev' ||
+      host === 'llama.com' ||
+      host.endsWith('.llama.com') ||
+      host === 'www.bigcode-project.org' ||
+      host === 'bigcode-project.org' ||
+      host === 'github.com';
+    if (!allowed) return false;
+    void shell.openExternal(parsed.toString());
+    return true;
+  });
+
+  ipcMain.handle(IPC.MODELS_RECOMMEND, async (_event, cwd: unknown) => {
+    const safeCwd =
+      typeof cwd === 'string' && cwd.length > 0 && cwd.length <= 4096 ? cwd : null;
+    const hardware = await detectHardware();
+    const project = safeCwd ? detectProject(safeCwd) : null;
+    return reg.recommend(hardware, project);
+  });
+
+  ipcMain.handle(
+    IPC.MODELS_LAUNCH,
+    async (_event, modelId: unknown, cwd: unknown): Promise<ModelLaunchResult> => {
+      if (typeof modelId !== 'string') {
+        return { ok: false, paneId: null, commandLine: null, error: 'modelId must be a string' };
+      }
+      const model = reg.get(modelId);
+      if (!model) {
+        return { ok: false, paneId: null, commandLine: null, error: `Unknown model: ${modelId}` };
+      }
+      const safeCwd =
+        typeof cwd === 'string' && cwd.length > 0 && cwd.length <= 4096 ? cwd : undefined;
+      // paneId = "model:<id>-<timestamp>" — bounded length, only allowed chars.
+      const safeIdPart = model.id.replace(/[^A-Za-z0-9_\-:]/g, '_').slice(0, 40);
+      const paneId = `model:${safeIdPart}-${Date.now().toString(36)}`.slice(0, 64);
+      try {
+        // Tag for ResourceMonitor's `models` bucket — keeps its RAM/CPU
+        // out of the `claude` bucket and out of `ollama` (the daemon is
+        // tracked separately via process-name scan).
+        ptyRegistry.setPaneCategory(paneId, 'model');
+        ptyRegistry.spawn(paneId, safeCwd, {
+          command: model.command,
+          args: model.args,
+          label: model.name,
+        });
+        syncResourcePids();
+        return {
+          ok: true,
+          paneId,
+          commandLine: ptyRegistry.commandLineFor(paneId),
+          error: null,
+        };
+      } catch (e) {
+        return {
+          ok: false,
+          paneId: null,
+          commandLine: null,
+          error: e instanceof Error ? e.message : String(e),
+        };
+      }
+    }
+  );
+}
+
+function setupOllama() {
+  const svc = OllamaService.instance();
+  // Forward pull progress to the renderer as a broadcast event keyed by
+  // model name (renderer routes to the right per-model UI).
+  ipcMain.handle(IPC.OLLAMA_VERSION, (_event, force: unknown) =>
+    svc.getVersion(force === true)
+  );
+  ipcMain.handle(IPC.OLLAMA_LIST, () => svc.listInstalled());
+  ipcMain.handle(IPC.OLLAMA_PULL_START, (_event, name: unknown) => {
+    if (typeof name !== 'string') {
+      return { ok: false, error: 'name must be a string' };
+    }
+    try {
+      const ee = svc.startPull(name);
+      ee.on('progress', (evt: OllamaPullProgressEvent) =>
+        safeSend(IPC.OLLAMA_PULL_PROGRESS, evt)
+      );
+      ee.on('done', () =>
+        safeSend(IPC.OLLAMA_PULL_PROGRESS, {
+          modelName: name,
+          percent: 100,
+          status: 'done',
+          bytesCompleted: null,
+          bytesTotal: null,
+        })
+      );
+      ee.on('error', (err: Error) =>
+        safeSend(IPC.OLLAMA_PULL_PROGRESS, {
+          modelName: name,
+          percent: null,
+          status: `error: ${err.message}`,
+          bytesCompleted: null,
+          bytesTotal: null,
+        })
+      );
+      return { ok: true, error: null };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  });
+  ipcMain.handle(IPC.OLLAMA_PULL_CANCEL, (_event, name: unknown) => {
+    if (typeof name !== 'string') return { ok: false };
+    return { ok: svc.cancelPull(name) };
+  });
+  ipcMain.handle(IPC.OLLAMA_DELETE, (_event, name: unknown) => {
+    if (typeof name !== 'string') return { ok: false, error: 'name must be a string' };
+    return svc.delete(name);
+  });
+}
+
+function setupHardware() {
+  ipcMain.handle(IPC.HARDWARE_DETECT, (_event, force: unknown) =>
+    detectHardware(force === true)
+  );
+}
+
+function setupProject() {
+  ipcMain.handle(IPC.PROJECT_DETECT, (_event, cwd: unknown) => {
+    const safeCwd =
+      typeof cwd === 'string' && cwd.length > 0 && cwd.length <= 4096 ? cwd : gitService.getCwd();
+    return detectProject(safeCwd);
+  });
+}
+
+function setupDisk() {
+  ipcMain.handle(IPC.DISK_INFO, async (_event, target: unknown) => {
+    const safeTarget =
+      typeof target === 'string' && target.length > 0 && target.length <= 4096
+        ? target
+        : undefined;
+    return probeDisk(safeTarget);
+  });
+}
+
+function setupAppMeta() {
+  // Single source of truth for the version shown in the title bar + status bar.
+  // app.getVersion() reads from package.json (or the packaged Info.plist /
+  // resources). Prevents the title=v1.0.0 / status=v2.0.0 / installer=v3.0.0
+  // tri-version drift observed in beta.1.
+  ipcMain.handle(IPC.APP_VERSION, () => app.getVersion());
+
+  // Danger-zone: wipe everything in <userData> EXCEPT Electron's own
+  // Cache / Local Storage / etc. dirs (those rebuild themselves). We
+  // only nuke the JSON-y state files we ourselves wrote — keeps the
+  // Chromium profile intact so the next launch isn't a slow first-run.
+  ipcMain.handle(IPC.APP_RESET_USER_DATA, async () => {
+    const userData = app.getPath('userData');
+    // Allowlist of files/dirs WE own (everything else is Chromium's).
+    const ourArtifacts = [
+      'session.json',
+      'cost-history.json',
+      'cost-settings.json',
+      'github-auth.json',
+      'cloud-sync-settings.json',
+      'cli-onboarding.json',
+      'cli-flags.json',
+      'hotkeys.json',
+      'tray-settings.json',
+      'notif-settings.json',
+      'snippets.json',
+      'lmm-settings.json',
+      'updater-settings.json',
+      'model-registry.json',
+      'models-onboarding.json',
+      'recent-projects.json',
+      'debug-dump.jsonl',
+      'lmm-journal',
+    ];
+    const removed: string[] = [];
+    const failed: Array<{ file: string; error: string }> = [];
+    for (const name of ourArtifacts) {
+      const full = path.join(userData, name);
+      try {
+        await nodeFsp.rm(full, { recursive: true, force: true });
+        removed.push(name);
+      } catch (e) {
+        failed.push({ file: name, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return { ok: failed.length === 0, removed, failed };
+  });
+
+  // Spawn the NSIS uninstaller. The installer creates an "Uninstall
+  // Claude Code Studio.exe" alongside the app — we just shell it out
+  // (detached so Studio can quit while the uninstaller is still running).
+  ipcMain.handle(IPC.APP_OPEN_UNINSTALLER, () => {
+    // 3.0.0 — cross-platform uninstall flow. Windows uses the NSIS
+    // uninstaller. macOS doesn't have one (drag-to-Trash idiom) so we
+    // open Finder at /Applications + return instructions. Linux varies
+    // by package format so we sniff exe path to give the right hint.
+    // Return shape: { ok, error, notice } — `notice` is non-error info
+    // the renderer should surface (e.g., "drag the app to Trash").
+    if (process.platform === 'win32') {
+      const exeDir = path.dirname(app.getPath('exe'));
+      // Per electron-builder's NSIS layout, the uninstaller lives in $INSTDIR.
+      // Name varies by productName: try both spellings before giving up.
+      const candidates = [
+        path.join(exeDir, 'Uninstall Claude Code Studio.exe'),
+        path.join(exeDir, 'Uninstall claude-code-studio.exe'),
+      ];
+      const uninstaller = candidates.find((p) => nodeFs.existsSync(p));
+      if (!uninstaller) {
+        return {
+          ok: false,
+          error: `Uninstaller not found next to the app exe. Searched: ${candidates.join(' ; ')}`,
+          notice: null,
+        };
+      }
+      try {
+        childSpawn(uninstaller, [], { detached: true, stdio: 'ignore' }).unref();
+        // Give the uninstaller a moment to start, then quit Studio so the
+        // uninstaller can remove files we have open.
+        setTimeout(() => app.quit(), 500);
+        return { ok: true, error: null, notice: null };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e), notice: null };
+      }
+    }
+
+    if (process.platform === 'darwin') {
+      // macOS doesn't have a postinstall/uninstaller concept. The user
+      // drags the .app to Trash. We open /Applications so they can do
+      // that immediately, and return instructions. The renderer pairs
+      // this with the existing Reset User Data flow so the userData JSON
+      // gets wiped first (otherwise the Trash drag leaves it orphaned).
+      void shell.openPath('/Applications').catch(() => undefined);
+      return {
+        ok: true,
+        error: null,
+        notice:
+          'macOS doesn\'t have a built-in uninstaller. Finder is now open at /Applications — ' +
+          'drag "Claude Code Studio" to the Trash. If you also want to wipe settings + history, ' +
+          'click "Reset user data" first.',
+      };
+    }
+
+    if (process.platform === 'linux') {
+      // Try to detect install format from the exe path / standard install
+      // locations. AppImage = single file (just rm); .deb = apt; .rpm = dnf.
+      const exePath = app.getPath('exe');
+      let instructions: string;
+      if (process.env.APPIMAGE) {
+        // AppImage sets this env var to its own path at runtime.
+        instructions = `This is an AppImage build. To uninstall: delete the AppImage file at:\n  ${process.env.APPIMAGE}`;
+      } else if (exePath.startsWith('/usr/') || exePath.startsWith('/opt/')) {
+        instructions =
+          'Looks like a system install. To uninstall:\n' +
+          '  Debian/Ubuntu:  sudo apt remove claude-code-studio\n' +
+          '  Fedora/RHEL:    sudo dnf remove claude-code-studio\n' +
+          '  Arch:           sudo pacman -R claude-code-studio';
+      } else {
+        instructions =
+          `Located at: ${exePath}\n` +
+          'Remove via your package manager (apt/dnf/pacman) or just delete the file if it\'s a portable build.';
+      }
+      return {
+        ok: true,
+        error: null,
+        notice:
+          `Linux doesn't have an in-app uninstaller. ${instructions}\n\n` +
+          'Click "Reset user data" first if you also want to wipe settings + history.',
+      };
+    }
+
+    return {
+      ok: false,
+      error: `Unsupported platform: ${process.platform}.`,
+      notice: null,
+    };
+  });
+}
+
+function setupProjectExplorer() {
+  ipcMain.handle(
+    IPC.PROJECT_LIST_DIR,
+    async (_event, root: unknown, target: unknown) => {
+      const safeRoot = typeof root === 'string' ? root : '';
+      const safeTarget = typeof target === 'string' ? target : '';
+      return projectListDir(safeRoot, safeTarget);
+    }
+  );
+  ipcMain.handle(IPC.PROJECT_RECENT_LIST, () => readRecentProjects());
+  ipcMain.handle(IPC.PROJECT_RECENT_ADD, (_event, target: unknown) => {
+    const safe = typeof target === 'string' ? target : '';
+    return addRecentProject(safe);
+  });
+  ipcMain.handle(IPC.PROJECT_RECENT_REMOVE, (_event, target: unknown) => {
+    const safe = typeof target === 'string' ? target : '';
+    return removeRecentProject(safe);
+  });
+}
+
+function setupCliFlags() {
+  ipcMain.handle(IPC.CLI_FLAGS_GET, () => readCliFlags());
+  ipcMain.handle(IPC.CLI_FLAGS_SET, (_event, flags: unknown) => {
+    if (!flags || typeof flags !== 'object') return readCliFlags();
+    return writeCliFlags(flags as Partial<CliFlags>);
+  });
+}
+
+function setupRunningModels() {
+  ipcMain.handle(IPC.MODELS_LIST_RUNNING, () => ptyRegistry.listModelPanes());
+}
+
+function setupFirstRun() {
+  const svc = FirstRunService.instance();
+  ipcMain.handle(IPC.MODELS_ONBOARDING_GET, () => svc.get());
+  ipcMain.handle(IPC.MODELS_ONBOARDING_MARK_SHOWN, (_event, outcome: unknown) => {
+    const safe = outcome === 'completed' ? 'completed' : 'skipped';
+    return svc.markShown(safe);
+  });
+  ipcMain.handle(IPC.MODELS_ONBOARDING_RESET, () => svc.reset());
+}
+
+function setupPopout() {
+  ipcMain.handle(
+    IPC.MODELS_POPOUT,
+    (_event, paneId: unknown, label: unknown): ModelPopoutResult => {
+      if (!PtyRegistry.isValidPaneId(paneId)) {
+        return { ok: false, windowId: null, error: 'invalid paneId' };
+      }
+      if (!ptyRegistry.has(paneId)) {
+        return { ok: false, windowId: null, error: 'pane not found — launch the model first' };
+      }
+      // Focus existing popout if present rather than spawning a duplicate.
+      const existing = popoutWindows.get(paneId);
+      if (existing && !existing.isDestroyed()) {
+        existing.show();
+        existing.focus();
+        return { ok: true, windowId: existing.id, error: null };
+      }
+
+      const safeLabel =
+        typeof label === 'string' && label.length > 0 && label.length <= 128
+          ? label
+          : 'Model';
+      try {
+        const win = new BrowserWindow({
+          width: 900,
+          height: 600,
+          title: `${safeLabel} — Claude Code Studio`,
+          parent: mainWindow ?? undefined,
+          backgroundColor: '#0a0a14',
+          webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            webSecurity: true,
+          },
+        });
+        popoutWindows.set(paneId, win);
+        win.on('closed', () => {
+          popoutWindows.delete(paneId);
+        });
+
+        // Load the same HTML the main window uses, with query params the
+        // renderer's popout-mode branch parses. URL-encode the label so
+        // the renderer can display it in the title bar.
+        const query = `?popout=${encodeURIComponent(paneId)}&label=${encodeURIComponent(safeLabel)}`;
+        if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+          void win.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${query}`);
+        } else {
+          void win.loadFile(
+            path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+            { search: query.slice(1) }
+          );
+        }
+        return { ok: true, windowId: win.id, error: null };
+      } catch (e) {
+        return {
+          ok: false,
+          windowId: null,
+          error: e instanceof Error ? e.message : String(e),
+        };
+      }
+    }
+  );
 }
 
 function setupGit() {
@@ -640,6 +1099,17 @@ app.whenReady().then(() => {
   setupSession();
   setupCost();
   setupCli();
+  setupModels();
+  setupOllama();
+  setupHardware();
+  setupProject();
+  setupDisk();
+  setupFirstRun();
+  setupPopout();
+  setupAppMeta();
+  setupProjectExplorer();
+  setupCliFlags();
+  setupRunningModels();
   setupWindowControls();
   setupHotkeys();
   setupTray();
@@ -669,6 +1139,17 @@ app.on('before-quit', () => {
   isQuitting = true;
   try {
     resourceMonitor.stop();
+  } catch {
+    // ignore
+  }
+  // Close pop-out windows so their renderers tear down their xterms before
+  // we kill the PTYs they're attached to (avoids "writing to disposed term"
+  // races in the destruct order).
+  try {
+    for (const win of popoutWindows.values()) {
+      if (!win.isDestroyed()) win.destroy();
+    }
+    popoutWindows.clear();
   } catch {
     // ignore
   }

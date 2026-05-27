@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { findBundledRuntime } from './runtime-paths';
+import { readCliFlags } from './cli-flags';
 
 let pty: typeof import('node-pty') | null = null;
 try {
@@ -13,12 +14,29 @@ try {
   // node-pty not available — fall back to child_process
 }
 
+/**
+ * Optional spawn overrides used by the multi-model launch flow.
+ * When omitted, PtyManager spawns the bundled `claude` CLI as before —
+ * existing terminal-pane flows are unchanged.
+ */
+export interface PtySpawnOpts {
+  /** argv[0]. Defaults to the bundled/resolved `claude` binary. */
+  command?: string;
+  /** argv[1..]. Defaults to []. */
+  args?: string[];
+  /** Extra env to merge on top of process.env. */
+  env?: Record<string, string>;
+  /** Human-readable label for logs (e.g. "Qwen2.5 Coder 7B"). */
+  label?: string;
+}
+
 export class PtyManager extends EventEmitter {
   private ptyProcess: import('node-pty').IPty | null = null;
   private childProcess: ChildProcess | null = null;
   private _pid: number = 0;
   private _usingPty: boolean = false;
   private _cwd: string = '';
+  private _commandLine: string = '';
 
   get pid(): number {
     return this._pid;
@@ -33,25 +51,49 @@ export class PtyManager extends EventEmitter {
     return this._cwd;
   }
 
-  spawn(cwd?: string): void {
-    const claudePath = this.findClaudePath();
+  /** Resolved command-line, e.g. "ollama run qwen2.5-coder:7b". */
+  get commandLine(): string {
+    return this._commandLine;
+  }
+
+  spawn(cwd?: string, opts?: PtySpawnOpts): void {
+    const command = opts?.command ?? this.findClaudePath();
+    let args = opts?.args ?? [];
+    // Claude-only auto-flags. When opts.command is unset (the default
+    // terminal flow that spawns the bundled claude CLI), respect the
+    // user-toggled flags from cli-flags.json. Model PTYs (opts.command
+    // explicitly set) are never modified — those use the model's verbatim
+    // command + args from ModelDefinition.
+    if (!opts?.command) {
+      const flags = readCliFlags();
+      if (flags.dangerouslySkipPermissions) {
+        args = ['--dangerously-skip-permissions', ...args];
+      }
+    }
     const workDir = cwd || os.homedir();
     this._cwd = workDir;
+    this._commandLine = [command, ...args].join(' ');
+    const env = { ...process.env, ...(opts?.env ?? {}) } as Record<string, string>;
 
     if (pty) {
-      this.spawnWithPty(claudePath, workDir);
+      this.spawnWithPty(command, args, workDir, env);
     } else {
-      this.spawnWithChildProcess(claudePath, workDir);
+      this.spawnWithChildProcess(command, args, workDir, env);
     }
   }
 
-  private spawnWithPty(claudePath: string, cwd: string): void {
-    this.ptyProcess = pty!.spawn(claudePath, [], {
+  private spawnWithPty(
+    command: string,
+    args: string[],
+    cwd: string,
+    env: Record<string, string>
+  ): void {
+    this.ptyProcess = pty!.spawn(command, args, {
       name: 'xterm-256color',
       cols: 120,
       rows: 30,
       cwd,
-      env: { ...process.env } as Record<string, string>,
+      env,
     });
 
     this._pid = this.ptyProcess.pid;
@@ -68,10 +110,15 @@ export class PtyManager extends EventEmitter {
     });
   }
 
-  private spawnWithChildProcess(claudePath: string, cwd: string): void {
-    this.childProcess = spawn(claudePath, [], {
+  private spawnWithChildProcess(
+    command: string,
+    args: string[],
+    cwd: string,
+    env: Record<string, string>
+  ): void {
+    this.childProcess = spawn(command, args, {
       cwd,
-      env: { ...process.env, TERM: 'xterm-256color', FORCE_COLOR: '1' },
+      env: { ...env, TERM: 'xterm-256color', FORCE_COLOR: '1' },
       shell: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });

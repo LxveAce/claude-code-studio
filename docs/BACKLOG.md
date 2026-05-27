@@ -7,11 +7,187 @@ to start.
 
 ---
 
-## ★ Multi-model support — "API Models" + "Local Models" tabs (v3.0 direction)
+## ★ v3.0.0-beta.3 — SHIPPED 2026-05-26 (commit 24b3848)
 
-**Status:** Brainstorm only — captured 2026-05-26 from user. Significant
-re-architecture; not v2.x work. Sketch the design here so it can be
-refined when we're ready to start.
+Installer: `Claude-Code-Studio-3.0.0-beta.3-Windows.exe` (91 MB) at
+`C:\Users\extra\OneDrive\Desktop\claude-code-studio-installers\`.
+
+Done in this push:
+
+- **Resource monitoring split into claude / models / ollama-daemon
+  buckets** — `ResourceMonitor` rebuilt with O(n) process-tree walk;
+  PtyRegistry now tracks per-pane category at spawn time; ResourcePanel
+  UI renders the new buckets when present. Backward-compatible.
+- **Cost rates** bumped to May 2026 Anthropic pricing (Haiku $1/$5).
+  Disclaimer expanded re local models being free + uncounted.
+- **GitHub error classification** in GitHubPanel.extractError — 401
+  / 403 / 404 / network all get friendly one-line messages instead of
+  raw stack traces. Rate-limit messages parse the reset timestamp when
+  present and say "Resets at HH:MM."
+- **File directory navigator** — new `Files` sidebar entry between
+  Resources and Cost. Lazy tree (1 dir level per IPC call), path-
+  traversal guarded, max 2000 entries per call. Recent-projects list
+  with persistence at `<userData>/recent-projects.json`.
+- **`--dangerously-skip-permissions` toggle** in Settings → Claude CLI.
+  Persisted at `<userData>/cli-flags.json`; PtyManager reads at spawn
+  time and prepends only when no `opts.command` (i.e., bundled Claude
+  CLI). Model PTYs never affected.
+- **Danger Zone** in Settings — Reset user data (wipes 18 named JSON/
+  JSONL files; leaves Chromium profile intact) + Uninstall Claude Code
+  Studio (spawns NSIS uninstaller, quits app). Both gated by
+  confirmation.
+- **NSIS uninstaller** now MB_YESNO prompts to also remove the user-
+  data JSON files (default No so a planned reinstall keeps settings).
+  Lists every file explicitly.
+- **Models panel running list** survives panel re-mount via new
+  `MODELS_LIST_RUNNING` IPC (rehydrates from `PtyRegistry.listModelPanes()`
+  on mount).
+- **EmbeddedTerminal** warns when paneId is stale (yellow placeholder
+  after 1.5s if `listRunning()` doesn't return the paneId).
+- **Auto-updater** now skips beta builds entirely (Gate 4 in
+  `UpdaterService.start()` checks `/-beta\./i.test(app.getVersion())`).
+  Fixes the v1.0.0 `latest.yml` 404 stack trace.
+- **Status bar** shows current git branch + dirty dot, polled every
+  30s + on focus.
+- **About row in Settings** reads from `app:version` IPC (was hardcoded
+  "2.0.0").
+
+Deferred (each its own ≥1 week push):
+- Per-provider API key entry (extend AuthPanel)
+- Model comparison view (parallel pane + synced input + diff)
+- Embedding-RAG over past sessions
+- VRAM tracking per loaded model (requires vendor GPU SDKs)
+
+---
+
+## ★ v3.0.0-beta.4 — queued for next push
+
+User request, 2026-05-26 (while testing beta.2):
+
+**Easier uninstall throughout.** Concrete asks not yet detailed; capture
+when user provides them. Likely items to investigate:
+- Verify the NSIS uninstaller actually removes everything we create
+  (bundled Node runtime, model-registry.json, debug-dump.jsonl,
+  models-onboarding.json, cli-onboarding.json, github-auth.json,
+  cost-history, lmm-journal, sync state, vault tails).
+- Add a "Reset Claude Code Studio" action inside the app (Settings →
+  Danger zone) that wipes `<userData>` without uninstalling the binary
+  — useful for the "I want to start fresh without going through Windows
+  Settings → Apps" path.
+- The Windows uninstaller currently lives at
+  `%LOCALAPPDATA%\Programs\claude-code-studio\Uninstall Claude Code Studio.exe`.
+  Add a Start Menu shortcut to it AND a "Uninstall Claude Code Studio"
+  action inside the app's Settings panel that just spawns that exe.
+- Consider whether uninstall should optionally also remove the user's
+  Ollama install + pulled models (separate question — likely "no by
+  default, yes with explicit checkbox").
+- Confirm `customUnInstall` in `build/installer.nsh` walks the right
+  directories on uninstall (today it just `RMDir /r` on
+  `$INSTDIR\resources\runtime` — userData isn't touched, which may or
+  may not be intentional).
+
+**Auto-updater 404 on beta builds.** User caught during beta.2 testing
+(2026-05-26 evening):
+
+```
+Cannot find latest.yml in the latest release artifacts
+(https://github.com/LxveAce/claude-code-studio/releases/download/v1.0.0/latest.yml):
+HttpError: 404
+```
+
+Root cause: `electron-updater` queries GitHub for the latest *published*
+release, which is still `v1.0.0` (v2.0.0 is in drafts, beta.x builds
+aren't on origin at all). The v1.0.0 release predates the
+electron-updater migration so it has no `latest.yml` asset — hence the
+404. The 404 currently bubbles up as a visible unhandled exception
+instead of being swallowed gracefully.
+
+Fix options to weigh in beta.3:
+1. **Detect beta builds** (`app.getVersion()` includes `-beta.`) and
+   disable the updater entirely in that case — no GitHub queries.
+   Simplest, no user-facing log noise. Probably right.
+2. Catch the 404 in `UpdaterService` and log-at-debug instead of letting
+   it bubble. Plus #1 — defense in depth.
+3. Long-term: publish a `latest.yml` to the v1.0.0 release retroactively
+   (or to v2.0.0 once promoted) so the updater has something to read.
+
+---
+
+## ★ v3.0.0-beta.2 red-team fixes (2026-05-26)
+
+After packaging beta.1 and trying it on a real machine, three concrete
+bugs surfaced that needed immediate fix before further testing:
+
+1. **Version drift across the UI** — `TitleBar.tsx` was hardcoded to
+   `v1.0.0` (predating v2), `StatusBar.tsx` was hardcoded to `v2.0.0`,
+   and the installer reported `3.0.0-beta.1`. Three different versions
+   on screen. Fixed by adding an `app:version` IPC backed by
+   `app.getVersion()` and rendering it from both labels.
+
+2. **"Sign in to Claude" sent `claude login` into a running Claude
+   session** — the embedded PTY auto-spawns Claude, so the active pane
+   is always a running Claude session, never a bare shell. The button
+   wired `sendToActivePane('claude login')`, which Claude interpreted
+   as chat text and replied "I notice you typed claude login as a
+   message rather than as a shell command." Fixed by sending Claude's
+   in-session `/login` slash command instead.
+
+3. **Auth modal popped on transient `claude doctor` failures** —
+   `CliService.getStatus` reported `authenticated: false` on ANY
+   non-zero doctor exit (network blip, telemetry timeout, anything),
+   which then popped the onboarding modal even when the user was clearly
+   authenticated. Fixed by only flipping to `authenticated: false` when
+   stderr explicitly mentions auth phrases; everything else defers to
+   Claude itself to prompt for login as needed.
+
+Plus the Ollama-bundle-in-installer removal — see the MULTI_MODEL.md
+update for that one.
+
+All four fixes shipped on commit `16f3701` on `feature/multi-model-
+scaffold` (testing remote), packaged as `Claude-Code-Studio-3.0.0-
+beta.2-Windows.exe`.
+
+---
+
+## ★ Multi-model support — IMPLEMENTED (full scope, 2026-05-26)
+
+**Status:** Built. The full-scope catalog + Ollama bootstrap + hardware
+detection + recommendation engine landed on `feature/multi-model-scaffold`
+on 2026-05-26. See `docs/MULTI_MODEL.md` for the design + research,
+and `_backups/2026-05-26-pre-fullscope/` for the pre-change snapshot.
+
+**Shipped this push:**
+- 33-model curated catalog seeded into `ModelRegistry` (covers general
+  chat, frontend, backend, polyglot code, reasoning, vision, long
+  context, edge, embedding — across all 5 hardware tiers).
+- `OllamaService` wrapper: detect, list installed, pull with progress,
+  cancel, delete.
+- `HardwareDetection`: RAM/CPU/GPU probe → `toaster` / `low` / `mid` /
+  `high` / `workstation` tier classification.
+- `ProjectLanguageDetect`: cwd → `frontend` / `backend` / `data` /
+  `systems` / etc. via package.json / pyproject.toml / Cargo.toml / etc.
+- `ModelRegistry.recommend()`: scores models against hardware + project,
+  surfaces top picks with reason strings.
+- `PtyManager` + `PtyRegistry` generalized: now accept arbitrary
+  `command` + `args` so any model can spawn into a pane.
+- NSIS installer bootstrap: detects Ollama at well-known install paths
+  + PATH; if absent, downloads OllamaSetup.exe via `curl.exe` and runs
+  silently with `/verysilent /norestart`.
+- `ModelsPanel` UI: hardware-tier banner, recommendations row, role +
+  tier + search filters, per-model card with full metadata, pull
+  progress bar, license disclosure, launch + kill flow.
+
+**Still deferred (documented in MULTI_MODEL.md):**
+- In-panel xterm output viewer for launched models (today: PTY runs in
+  background, output reaches the renderer via existing TERMINAL_DATA but
+  no Models-panel-local viewer is mounted)
+- Pop-out windows per model
+- "Add custom model" form (catalog-side CRUD is wired; UI is not)
+- Per-provider API-key entry UI (extend AuthPanel beyond Anthropic)
+- macOS + Linux installer Ollama bootstrap (Windows shipped this push;
+  POSIX install-OllamaSetup logic follows the same curl pattern)
+
+**Original brainstorm (preserved for context):**
 
 ### The pitch
 
