@@ -7,7 +7,60 @@ to start.
 
 ---
 
-## ★ v3.0.0-beta.3 — queued for next push
+## ★ v3.0.0-beta.3 — SHIPPED 2026-05-26 (commit 24b3848)
+
+Installer: `Claude-Code-Studio-3.0.0-beta.3-Windows.exe` (91 MB) at
+`C:\Users\extra\OneDrive\Desktop\claude-code-studio-installers\`.
+
+Done in this push:
+
+- **Resource monitoring split into claude / models / ollama-daemon
+  buckets** — `ResourceMonitor` rebuilt with O(n) process-tree walk;
+  PtyRegistry now tracks per-pane category at spawn time; ResourcePanel
+  UI renders the new buckets when present. Backward-compatible.
+- **Cost rates** bumped to May 2026 Anthropic pricing (Haiku $1/$5).
+  Disclaimer expanded re local models being free + uncounted.
+- **GitHub error classification** in GitHubPanel.extractError — 401
+  / 403 / 404 / network all get friendly one-line messages instead of
+  raw stack traces. Rate-limit messages parse the reset timestamp when
+  present and say "Resets at HH:MM."
+- **File directory navigator** — new `Files` sidebar entry between
+  Resources and Cost. Lazy tree (1 dir level per IPC call), path-
+  traversal guarded, max 2000 entries per call. Recent-projects list
+  with persistence at `<userData>/recent-projects.json`.
+- **`--dangerously-skip-permissions` toggle** in Settings → Claude CLI.
+  Persisted at `<userData>/cli-flags.json`; PtyManager reads at spawn
+  time and prepends only when no `opts.command` (i.e., bundled Claude
+  CLI). Model PTYs never affected.
+- **Danger Zone** in Settings — Reset user data (wipes 18 named JSON/
+  JSONL files; leaves Chromium profile intact) + Uninstall Claude Code
+  Studio (spawns NSIS uninstaller, quits app). Both gated by
+  confirmation.
+- **NSIS uninstaller** now MB_YESNO prompts to also remove the user-
+  data JSON files (default No so a planned reinstall keeps settings).
+  Lists every file explicitly.
+- **Models panel running list** survives panel re-mount via new
+  `MODELS_LIST_RUNNING` IPC (rehydrates from `PtyRegistry.listModelPanes()`
+  on mount).
+- **EmbeddedTerminal** warns when paneId is stale (yellow placeholder
+  after 1.5s if `listRunning()` doesn't return the paneId).
+- **Auto-updater** now skips beta builds entirely (Gate 4 in
+  `UpdaterService.start()` checks `/-beta\./i.test(app.getVersion())`).
+  Fixes the v1.0.0 `latest.yml` 404 stack trace.
+- **Status bar** shows current git branch + dirty dot, polled every
+  30s + on focus.
+- **About row in Settings** reads from `app:version` IPC (was hardcoded
+  "2.0.0").
+
+Deferred (each its own ≥1 week push):
+- Per-provider API key entry (extend AuthPanel)
+- Model comparison view (parallel pane + synced input + diff)
+- Embedding-RAG over past sessions
+- VRAM tracking per loaded model (requires vendor GPU SDKs)
+
+---
+
+## ★ v3.0.0-beta.4 — queued for next push
 
 User request, 2026-05-26 (while testing beta.2):
 
