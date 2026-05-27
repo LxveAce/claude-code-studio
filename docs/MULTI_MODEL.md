@@ -126,29 +126,41 @@ toaster:      anything less
 
 ---
 
-## Ollama bootstrap (Windows installer)
+## Ollama install (in-app, not in the installer)
 
-NSIS `customInstall` macro (see `build/installer.nsh` step 5) probes for
-Ollama at three well-known paths plus PATH via `where.exe`:
+**Updated 2026-05-26 post-beta.1:** The NSIS-bundled Ollama download was
+removed. The installer is now detection-only — it logs whether Ollama is
+present on the machine so the in-app UI starts in the right state, but
+never downloads OllamaSetup.exe itself.
 
-- `$LOCALAPPDATA\Programs\Ollama\ollama.exe`
-- `$PROGRAMFILES\Ollama\ollama.exe`
-- `$PROGRAMFILES64\Ollama\ollama.exe`
+### Why it was removed
 
-If found: log version, skip install. If absent: `curl.exe` down
-`OllamaSetup.exe` from `ollama.com/download/OllamaSetup.exe` (~700 MB)
-and run with `/verysilent /norestart`. Both failure modes (download
-failed, installer non-zero exit) are SOFT — Studio installs anyway and
-the Models panel surfaces "Ollama not installed" with an Install link.
+Beta.1's installer downloaded + silently installed Ollama as the last
+NSIS step. Ollama's installer turned out to be ~2 GB (not the ~700 MB
+initially estimated), and the NSIS UI has no progress bar for a single
+`curl` call. The window just sat on "Setting up Ollama…" for 5+ minutes
+while bytes streamed in `%TEMP%`. A first-time user has no way to tell
+"silently downloading 2 GB" from "stuck." Even with proof it was
+working, the UX was bad enough that we pulled it.
 
-We don't pin a SHA because Ollama's setup URL serves "latest stable" and
-ships new versions monthly. The setup binary is Authenticode-signed by
-Ollama, Inc., so Windows verifies the signature when the installer runs.
+### What replaces it
 
-**Not yet shipped:** macOS + Linux installer Ollama bootstrap. The
-detection + fallback logic in the panel UI is platform-neutral, so users
-on those OSes just see "Ollama not installed" and install manually for
-now.
+- **NSIS step 5** (`build/installer.nsh`) is now detection-only. It
+  probes `$LOCALAPPDATA\Programs\Ollama\ollama.exe`, `$PROGRAMFILES\
+  Ollama\ollama.exe`, and `$PROGRAMFILES64\Ollama\ollama.exe`. Logs the
+  result. Never downloads.
+- **In-app:** the FirstRunPicker + ModelsPanel detect Ollama at runtime
+  via the same `OllamaService.getVersion()` probe (used on all
+  platforms). If not present, both surfaces render an "Install Ollama"
+  link to `ollama.com/download`. User-initiated, visible progress in the
+  browser, fully cancelable.
+
+### If the bundled flow ever needs to come back
+
+Pre-beta.2 versions of `installer.nsh` are in
+`_backups/2026-05-26-pre-fullscope/build/installer.nsh` (initial scaffold)
+and `_backups/2026-05-26-redteam-v3/build/installer.nsh` (the version
+that bundled the download). Copy step 5 back if requirements change.
 
 ---
 

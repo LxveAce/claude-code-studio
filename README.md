@@ -47,8 +47,11 @@ the terminal-first workflow.
 - **Multi-model catalog (v3.0, testing branch)** — 33-model curated catalog
   of local + API models (Qwen, DeepSeek, Llama, Gemma, Granite, Phi,
   Mistral, embeddings). Hardware-tier auto-detect, cwd-aware
-  recommendations (frontend vs backend), pull/launch/delete via bundled
-  Ollama. See [docs/MULTI_MODEL.md](./docs/MULTI_MODEL.md).
+  recommendations (frontend vs backend), in-panel terminal + pop-out
+  windows for launched models, first-run picker that pre-pulls your
+  hardware's defaults. Ollama is detected at runtime; if missing, the
+  app surfaces a one-click install link (it is NOT bundled in the
+  installer). See [docs/MULTI_MODEL.md](./docs/MULTI_MODEL.md).
 - **Resource monitor** — live CPU / RAM / GPU, including per-Claude-process
   aggregation across panes.
 - **Compact controller** — reads/toggles the compact-controller hooks and state.

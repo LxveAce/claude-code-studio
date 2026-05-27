@@ -7,6 +7,42 @@ to start.
 
 ---
 
+## ★ v3.0.0-beta.2 red-team fixes (2026-05-26)
+
+After packaging beta.1 and trying it on a real machine, three concrete
+bugs surfaced that needed immediate fix before further testing:
+
+1. **Version drift across the UI** — `TitleBar.tsx` was hardcoded to
+   `v1.0.0` (predating v2), `StatusBar.tsx` was hardcoded to `v2.0.0`,
+   and the installer reported `3.0.0-beta.1`. Three different versions
+   on screen. Fixed by adding an `app:version` IPC backed by
+   `app.getVersion()` and rendering it from both labels.
+
+2. **"Sign in to Claude" sent `claude login` into a running Claude
+   session** — the embedded PTY auto-spawns Claude, so the active pane
+   is always a running Claude session, never a bare shell. The button
+   wired `sendToActivePane('claude login')`, which Claude interpreted
+   as chat text and replied "I notice you typed claude login as a
+   message rather than as a shell command." Fixed by sending Claude's
+   in-session `/login` slash command instead.
+
+3. **Auth modal popped on transient `claude doctor` failures** —
+   `CliService.getStatus` reported `authenticated: false` on ANY
+   non-zero doctor exit (network blip, telemetry timeout, anything),
+   which then popped the onboarding modal even when the user was clearly
+   authenticated. Fixed by only flipping to `authenticated: false` when
+   stderr explicitly mentions auth phrases; everything else defers to
+   Claude itself to prompt for login as needed.
+
+Plus the Ollama-bundle-in-installer removal — see the MULTI_MODEL.md
+update for that one.
+
+All four fixes shipped on commit `16f3701` on `feature/multi-model-
+scaffold` (testing remote), packaged as `Claude-Code-Studio-3.0.0-
+beta.2-Windows.exe`.
+
+---
+
 ## ★ Multi-model support — IMPLEMENTED (full scope, 2026-05-26)
 
 **Status:** Built. The full-scope catalog + Ollama bootstrap + hardware
