@@ -233,4 +233,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   disk: {
     info: (target?: string) => ipcRenderer.invoke(IPC.DISK_INFO, target ?? null),
   },
+  app: {
+    version: () => ipcRenderer.invoke(IPC.APP_VERSION),
+  },
 });

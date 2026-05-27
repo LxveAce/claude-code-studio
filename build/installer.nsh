@@ -46,14 +46,8 @@
 !define CLAUDE_PKG    "@anthropic-ai/claude-code"
 !define INSTALL_LOG   "$TEMP\ccs-install.log"
 
-; Ollama bootstrap (multi-model v3.0). Ollama is downloaded fresh from
-; ollama.com — it is Authenticode-signed by Ollama, Inc., so Windows will
-; verify the signature when the installer executes. We do not pin a SHA
-; because Ollama releases new versions frequently and the URL serves the
-; latest stable. If you want pinned versions, swap to a GitHub Releases
-; pinned URL and add a SHA define below.
-!define OLLAMA_URL    "https://ollama.com/download/OllamaSetup.exe"
-!define OLLAMA_EXE    "OllamaSetup.exe"
+; (Removed 2026-05-26 post-beta.1) Ollama bundling defines used to live
+; here. The bundle was too slow + invisible — see step 5 below.
 
 ; ----------------------------------------------------------------------------
 ; Helper: log to both NSIS detail view and $TEMP\ccs-install.log.
@@ -176,60 +170,27 @@
   npm_ok:
   !insertmacro CCSLog "Claude Code CLI installed"
 
-  ; --- Step 5: Detect or install Ollama (multi-model v3.0) ---
-  ; Decision per user (2026-05-26): detect existing Ollama via well-known
-  ; install paths + PATH probe. If found, log and skip. If not, curl down
-  ; OllamaSetup.exe from ollama.com and run silently.
-  !insertmacro CCSLog "Probing for Ollama..."
-
-  ; First, check well-known install paths. We use 'where' for PATH probing
-  ; and IfFileExists for the install dirs. Each check is independent.
-  IfFileExists "$LOCALAPPDATA\Programs\Ollama\ollama.exe" ollama_found 0
-  IfFileExists "$PROGRAMFILES\Ollama\ollama.exe" ollama_found 0
-  IfFileExists "$PROGRAMFILES64\Ollama\ollama.exe" ollama_found 0
-  ; PATH probe — `where.exe` exit 0 means found; 1 means not found.
-  nsExec::ExecToStack 'where.exe ollama.exe'
-  Pop $0
-  Pop $1
-  IntCmp $0 0 ollama_found ollama_not_found ollama_not_found
-
-  ollama_found:
-    !insertmacro CCSLog "Ollama already present — skipping install"
-    Goto ollama_done
-
-  ollama_not_found:
-    !insertmacro CCSLog "Ollama not found. Downloading installer (~700 MB)..."
-    ; Long max-time because the file is large and bandwidth varies.
-    nsExec::ExecToStack 'curl.exe -L -f --show-error -o "$TEMP\${OLLAMA_EXE}" --connect-timeout 30 --max-time 1200 "${OLLAMA_URL}"'
-    Pop $0
-    Pop $1
-    IntCmp $0 0 ollama_dl_ok
-      !insertmacro CCSLog "Ollama download FAILED (curl exit $0): $1"
-      ; SOFT failure — Studio installs anyway. User can install Ollama later
-      ; from ollama.com and the Models panel will pick it up via probe.
-      MessageBox MB_ICONEXCLAMATION|MB_OK \
-        "Claude Code Studio will install, but the bundled Ollama download didn't complete.$\n$\ncurl exit code: $0$\n$1$\n$\nThe local-model catalog will be visible but you'll need to install Ollama from https://ollama.com/download before pulling any local models.$\n$\nFull log: ${INSTALL_LOG}"
-      Goto ollama_done
-    ollama_dl_ok:
-
-    !insertmacro CCSLog "Running Ollama installer silently..."
-    ; /verysilent + /norestart match Ollama's Inno Setup conventions.
-    ; nsExec::ExecToStack waits for the installer to exit.
-    nsExec::ExecToStack '"$TEMP\${OLLAMA_EXE}" /verysilent /norestart'
-    Pop $0
-    Pop $1
-    IntCmp $0 0 ollama_install_ok
-      !insertmacro CCSLog "Ollama installer FAILED (exit $0): $1"
-      MessageBox MB_ICONEXCLAMATION|MB_OK \
-        "Claude Code Studio will install, but Ollama's setup didn't complete cleanly.$\n$\nExit code: $0$\n$1$\n$\nYou can re-run Ollama Setup manually from $TEMP\${OLLAMA_EXE}, or download a fresh copy from https://ollama.com/download.$\n$\nFull log: ${INSTALL_LOG}"
-      Goto ollama_done
-    ollama_install_ok:
-    !insertmacro CCSLog "Ollama installed"
-    ; Clean up downloaded installer — Ollama's MSI/service is now persistent
-    ; in the user's install dir, so the staging .exe is no longer needed.
-    Delete "$TEMP\${OLLAMA_EXE}"
-
-  ollama_done:
+  ; --- Step 5: Ollama detection only (NOT install) ---
+  ; Decision (2026-05-26, post-beta.1): bundling the Ollama installer in
+  ; the NSIS bootstrap was too much friction. Ollama's installer turned
+  ; out to be ~2 GB (not the ~700 MB initially estimated), the NSIS UI has
+  ; no progress bar for a single curl call, and a first-time user has no
+  ; way to know if the installer is silently downloading or genuinely
+  ; stuck. See `_backups/2026-05-26-pre-fullscope/build/installer.nsh` for
+  ; the bundled flow if it ever needs to be re-enabled.
+  ;
+  ; Replacement: the in-app FirstRunPicker + ModelsPanel detect Ollama at
+  ; runtime via the same path probes below and surface a one-click "Install
+  ; Ollama" link to ollama.com/download. Users who don't want local models
+  ; never have to pay the download.
+  !insertmacro CCSLog "Probing for Ollama (informational only)..."
+  IfFileExists "$LOCALAPPDATA\Programs\Ollama\ollama.exe" ollama_present 0
+  IfFileExists "$PROGRAMFILES\Ollama\ollama.exe" ollama_present 0
+  IfFileExists "$PROGRAMFILES64\Ollama\ollama.exe" ollama_present 0
+  !insertmacro CCSLog "Ollama not present — in-app catalog will offer install link"
+  Goto bootstrap_done
+  ollama_present:
+    !insertmacro CCSLog "Ollama detected — local-model catalog will be ready immediately"
 
   bootstrap_done:
   !insertmacro CCSLog "===== Claude Code Studio bootstrap complete ====="

@@ -136,6 +136,9 @@ export const IPC = {
   /** Main → renderer: each parsed line of `ollama pull` progress. */
   OLLAMA_PULL_PROGRESS: 'ollama:pull-progress',
 
+  // App metadata.
+  APP_VERSION: 'app:version',
+
   // Hardware + project detection.
   HARDWARE_DETECT: 'hardware:detect',
   PROJECT_DETECT: 'project:detect',

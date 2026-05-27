@@ -280,5 +280,8 @@ interface Window {
     disk: {
       info: (target?: string) => Promise<import('./shared/types').DiskInfo>;
     };
+    app: {
+      version: () => Promise<string>;
+    };
   };
 }

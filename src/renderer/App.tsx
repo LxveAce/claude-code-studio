@@ -441,12 +441,17 @@ export function App() {
         <CliAuthOnboarding
           onClose={() => setCliOnboardingOpen(false)}
           sendToActivePane={(text) => {
-            // "Sign in to Claude" types `claude login` into the active
-            // pane. Switch to the terminal first so the user sees the
-            // CLI's OAuth prompts. `submit: true` makes sendToActive
-            // append a real CR after the command — without it the text
-            // appears typed but the command never runs (PTY readline
-            // needs CR, not LF, to register Enter).
+            // "Sign in to Claude" types `/login` (Claude's in-session
+            // slash command) into the active pane. The embedded PTY
+            // auto-spawns Claude, so the active pane is always a running
+            // Claude session — `/login` triggers the browser OAuth flow
+            // from inside that session. Typing `claude login` (the bare
+            // shell command) here would be treated as chat text and
+            // Claude would reply "I notice you typed claude login as a
+            // message…" — exactly the bug caught in 3.0.0-beta.1.
+            //
+            // submit=true appends CR so Claude executes the slash command
+            // immediately. Without CR the text appears typed but inert.
             setActivePanel('terminal');
             sendToActive(text, true);
           }}

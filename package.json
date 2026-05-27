@@ -1,7 +1,7 @@
 {
   "name": "claude-code-studio",
   "productName": "Claude Code Studio",
-  "version": "2.0.0",
+  "version": "3.0.0-beta.2",
   "description": "Full desktop GUI for Claude Code with resource monitoring, GitHub integration, compact optimization, and cloud sync",
   "main": ".vite/build/index.js",
   "private": true,

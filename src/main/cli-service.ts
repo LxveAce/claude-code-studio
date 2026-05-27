@@ -183,18 +183,27 @@ export class CliService {
           lastError: 'Claude Code CLI not found on this machine',
         };
       }
-      // Non-zero exit. Could be: not authenticated, broken install, etc.
-      // Look at the output for auth-specific hints.
+      // Non-zero exit. Could be: not authenticated, broken install, network
+      // hiccup, telemetry timeout, etc. The 3.0.0-beta.1 testing pass showed
+      // that returning `authenticated: false` on ANY non-zero exit was too
+      // aggressive — it popped the CLI onboarding modal even for users who
+      // were clearly authenticated (claude already running in the embedded
+      // terminal), then their "Sign in" click sent `claude login` into the
+      // running Claude session as chat text.
+      //
+      // New heuristic: only report `authenticated: false` when the output
+      // explicitly mentions auth ("not authenticated", "please log in",
+      // etc.). For any other non-zero exit, give the benefit of the doubt
+      // and return `authenticated: true`. If they're actually signed out,
+      // Claude itself will prompt them to /login when they try to use it —
+      // a much less disruptive feedback path than a modal-on-every-launch.
       const errOutput = `${err.stderr ?? ''}\n${err.message}`.toLowerCase();
       const looksLikeAuthMissing = /(not authenticated|please log in|please sign in|run.*claude login)/.test(
         errOutput
       );
-      // If output mentions auth, the CLI IS installed but unauthenticated.
-      // Otherwise it's some other doctor failure — still report installed
-      // but unauthenticated, with the error message for diagnostics.
       return {
         installed: true,
-        authenticated: false,
+        authenticated: !looksLikeAuthMissing,
         version: null,
         source,
         lastError: looksLikeAuthMissing

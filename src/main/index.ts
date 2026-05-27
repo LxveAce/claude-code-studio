@@ -537,6 +537,14 @@ function setupDisk() {
   });
 }
 
+function setupAppMeta() {
+  // Single source of truth for the version shown in the title bar + status bar.
+  // app.getVersion() reads from package.json (or the packaged Info.plist /
+  // resources). Prevents the title=v1.0.0 / status=v2.0.0 / installer=v3.0.0
+  // tri-version drift observed in beta.1.
+  ipcMain.handle(IPC.APP_VERSION, () => app.getVersion());
+}
+
 function setupFirstRun() {
   const svc = FirstRunService.instance();
   ipcMain.handle(IPC.MODELS_ONBOARDING_GET, () => svc.get());
@@ -909,6 +917,7 @@ app.whenReady().then(() => {
   setupDisk();
   setupFirstRun();
   setupPopout();
+  setupAppMeta();
   setupWindowControls();
   setupHotkeys();
   setupTray();

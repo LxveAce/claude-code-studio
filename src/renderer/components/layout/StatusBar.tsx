@@ -10,6 +10,18 @@ export function StatusBar({ pid }: StatusBarProps) {
   // bits. Cleared back to null on update-downloaded (the ready badge takes
   // over) or if the updater silently aborts.
   const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
+  // Current installed version — single source of truth via app:version IPC
+  // (added 3.0.0-beta.2). Replaces the hardcoded "v2.0.0" baked into the
+  // bottom-right label, which never tracked package.json bumps.
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI.app.version()
+      .then((v) => { if (!cancelled) setAppVersion(v); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,7 +131,7 @@ export function StatusBar({ pid }: StatusBarProps) {
           </span>
         )}
       </div>
-      <span>Claude Code Studio v2.0.0</span>
+      <span>Claude Code Studio{appVersion ? ` v${appVersion}` : ''}</span>
     </div>
   );
 }

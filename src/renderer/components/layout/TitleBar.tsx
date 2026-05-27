@@ -1,6 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 export function TitleBar() {
+  // Version sourced from the main-process `app.getVersion()` via the
+  // app:version IPC (added 3.0.0-beta.2). Was hardcoded "v1.0.0" through
+  // v2.0; that drift is what produced the title=v1 / status=v2 / installer=v3
+  // mismatch the user caught in beta.1 testing.
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI.app.version()
+      .then((v) => {
+        if (!cancelled) setVersion(v);
+      })
+      .catch(() => {
+        // IPC missing (very old preload?) — leave version null so we render
+        // the label without a value rather than a wrong hardcoded one.
+      });
+    return () => { cancelled = true; };
+  }, []);
   return (
     <div style={{
       height: 40,
@@ -47,7 +64,7 @@ export function TitleBar() {
           border: '1px solid var(--border)',
           fontWeight: 500,
         }}>
-          v1.0.0
+          {version ? `v${version}` : ''}
         </span>
       </div>
 
