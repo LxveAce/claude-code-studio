@@ -11,11 +11,19 @@ interface CommandsPanelProps {
    *  list, quick actions, and shortcuts to surface. Defaults to 'claude'
    *  if not provided so the panel renders sensibly in isolation. */
   family?: CommandFamily;
+  /** v4.0.3: Claude (Chat) empty-state CTA — spawn a plain Claude tab so
+   *  the user can use slash commands. Wired by App.tsx to its existing
+   *  handleNewClaudeTab. Optional so the panel still renders in isolation. */
+  onSpawnPlainClaudeTab?: () => void;
 }
 
 type TabId = 'quick' | 'all' | 'keys';
 
-export function CommandsPanel({ onSendCommand, family = 'claude' }: CommandsPanelProps) {
+export function CommandsPanel({
+  onSendCommand,
+  family = 'claude',
+  onSpawnPlainClaudeTab,
+}: CommandsPanelProps) {
   const config = COMMAND_FAMILIES[family] ?? COMMAND_FAMILIES.unknown;
   const [tab, setTab] = useState<TabId>('quick');
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -100,6 +108,52 @@ export function CommandsPanel({ onSendCommand, family = 'claude' }: CommandsPane
           </button>
         ))}
       </div>
+
+      {/* v4.0.3: Claude (Chat) doesn't accept slash commands — surface
+       *  a direct way out to a plain Claude tab.  Sits above QuickCommands
+       *  so it's the first thing visible alongside the empty-state copy. */}
+      {family === 'claude-chat' && onSpawnPlainClaudeTab && (
+        <button
+          onClick={onSpawnPlainClaudeTab}
+          data-cta="spawn-plain-claude"
+          title="Open a new Claude tab that supports slash commands and Quick Actions."
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: '10px 12px',
+            marginBottom: 10,
+            borderRadius: 'var(--radius-md)',
+            borderWidth: 1,
+            borderStyle: 'solid',
+            borderColor: 'var(--accent-dim, rgba(167,139,250,0.35))',
+            background: 'var(--accent-gradient-soft, rgba(167,139,250,0.08))',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 500,
+            transition: 'all var(--transition-fast)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateX(2px)';
+            e.currentTarget.style.borderColor = 'var(--border-active, rgba(167,139,250,0.55))';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'none';
+            e.currentTarget.style.borderColor = 'var(--accent-dim, rgba(167,139,250,0.35))';
+          }}
+        >
+          <span>+ Switch to a plain Claude tab</span>
+          <span style={{
+            fontSize: 10,
+            color: 'var(--text-muted)',
+            fontWeight: 400,
+          }}>
+            slash commands & quick actions
+          </span>
+        </button>
+      )}
 
       {tab === 'quick' && (
         <QuickCommands
