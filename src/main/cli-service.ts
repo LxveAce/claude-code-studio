@@ -338,7 +338,7 @@ export class CliService {
         return {
           ok: false,
           output: '',
-          error: 'Bundled Node runtime is missing. Reinstall Claude Code Studio to recover.',
+          error: 'Bundled Node runtime is missing. Reinstall Catalyst UI to recover.',
         };
       }
 
@@ -358,7 +358,7 @@ export class CliService {
         return {
           ok: false,
           output: bootstrapResult.output,
-          error: 'Node bootstrap completed but expected files are missing. Try reinstalling Claude Code Studio.',
+          error: 'Node bootstrap completed but expected files are missing. Try reinstalling Catalyst UI.',
         };
       }
     }

@@ -125,7 +125,7 @@ export class NotificationsService {
   fireTest(): boolean {
     if (!this.isSupported()) return false;
     this.show('test', {
-      title: 'Claude Code Studio',
+      title: 'Catalyst UI',
       body: 'Notifications are working.',
     });
     return true;

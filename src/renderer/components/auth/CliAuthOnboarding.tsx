@@ -180,7 +180,7 @@ export function CliAuthOnboarding({ onClose, sendToActivePane }: Props) {
             fontWeight: 600,
           }}
         >
-          Welcome to Claude Code Studio
+          Welcome to Catalyst UI
         </h2>
         <p
           style={{

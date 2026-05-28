@@ -24,7 +24,7 @@ interface Props {
 
 export function PopoutView({ paneId, label, profile }: Props) {
   useEffect(() => {
-    document.title = `${label} — Claude Code Studio`;
+    document.title = `${label} — Catalyst UI`;
   }, [label]);
 
   return (

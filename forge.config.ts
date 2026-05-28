@@ -20,7 +20,7 @@ const config: ForgeConfig = {
       // can't be located).
       unpack: '**/node_modules/node-pty/**',
     },
-    name: 'Claude Code Studio',
+    name: 'Catalyst UI',
     // executableName must match what auto-update expects post-install.
     // Squirrel uses the productName for the install dir; this controls the .exe.
     executableName: 'claude-code-studio',

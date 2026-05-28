@@ -1,6 +1,10 @@
 appId: com.lxveace.claude-code-studio
-productName: Claude Code Studio
+productName: Catalyst UI
 copyright: Copyright © 2026 LxveAce
+# appId intentionally retained as `claude-code-studio` so v3.2.1 installs
+# upgrade in place — Windows NSIS keys off appId to decide
+# upgrade-vs-parallel-install.  Display name is "Catalyst UI" everywhere
+# user-facing; the appId is internal plumbing.
 
 # IMPORTANT: builder output goes to dist/ to avoid colliding with forge's out/
 # (per Phase 1 red-team M3). Both pipelines coexist until Phase 8.
@@ -44,8 +48,8 @@ win:
       arch:
         - x64
   # icon: build/icon.ico  # uncommented in Phase 5 once asset exists
-  # Version-stamped OS-only filename: Claude-Code-Studio-2.0.0-Windows.exe
-  artifactName: "Claude-Code-Studio-${version}-Windows.${ext}"
+  # Version-stamped OS-only filename: Catalyst-UI-2.0.0-Windows.exe
+  artifactName: "Catalyst-UI-${version}-Windows.${ext}"
 
 # macOS — DMG drag-to-Applications + zip for the auto-updater.
 # Bootstrap (Node + Claude CLI) happens on first launch via the existing
@@ -72,7 +76,7 @@ mac:
     - target: dmg
       arch: arm64
   category: public.app-category.developer-tools
-  artifactName: "Claude-Code-Studio-${version}-Mac.${ext}"
+  artifactName: "Catalyst-UI-${version}-Mac.${ext}"
   hardenedRuntime: false
   identity: null
 
@@ -107,19 +111,19 @@ linux:
   category: Development
   # Per-distro naming via the top-level appImage/deb/rpm blocks below.
   # The linux.artifactName here is the fallback default.
-  artifactName: "Claude-Code-Studio-${version}-Linux.${ext}"
+  artifactName: "Catalyst-UI-${version}-Linux.${ext}"
 
 # Per-target overrides so each Linux format names its target distro
 # in the filename — users on Fedora know to grab the .rpm,
 # Ubuntu/Debian grabs the .deb, anything else grabs the AppImage.
 appImage:
-  artifactName: "Claude-Code-Studio-${version}-Linux-Universal.${ext}"
+  artifactName: "Catalyst-UI-${version}-Linux-Universal.${ext}"
 
 deb:
-  artifactName: "Claude-Code-Studio-${version}-Linux-Debian.${ext}"
+  artifactName: "Catalyst-UI-${version}-Linux-Debian.${ext}"
 
 rpm:
-  artifactName: "Claude-Code-Studio-${version}-Linux-Fedora.${ext}"
+  artifactName: "Catalyst-UI-${version}-Linux-Fedora.${ext}"
 
 nsis:
   # Cat 8 — real wizard mode replaces the previous silent one-click flow.
@@ -130,8 +134,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: "Claude Code Studio"
-  artifactName: "Claude-Code-Studio-${version}-Windows.${ext}"
+  shortcutName: "Catalyst UI"
+  artifactName: "Catalyst-UI-${version}-Windows.${ext}"
   # Disable .exe.blockmap generation — used only for delta updates which
   # we're not shipping in v2.0 (auto-updater disabled this release).
   differentialPackage: false
@@ -152,5 +156,9 @@ nsis:
 publish:
   - provider: github
     owner: LxveAce
-    repo: claude-code-studio
+    repo: catalyst-ui
     releaseType: draft
+    # Repo rename happens in lockstep with v4.0.0; until then this
+    # config is for the FUTURE catalyst-ui repo.  Builds prior to
+    # the lockstep rename were pointed at claude-code-studio and
+    # will continue to find updates via GitHub's permanent redirect.

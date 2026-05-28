@@ -262,7 +262,7 @@ export class CloudSyncService {
       name: repoName,
       private: true,
       auto_init: true,
-      description: 'Claude Code Studio — conversation vault backups',
+      description: 'Catalyst UI — conversation vault backups',
     });
     return { owner: data.owner.login, name: data.name };
   }

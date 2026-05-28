@@ -69,7 +69,7 @@ export function ProviderSetupModal({ modelName, detect, onRetry, onDismiss }: Pr
             margin: '0 0 12px',
           }}
         >
-          Claude Code Studio doesn't bundle <code style={{ fontFamily: 'monospace' }}>{detect.cli}</code>.
+          Catalyst UI doesn't bundle <code style={{ fontFamily: 'monospace' }}>{detect.cli}</code>.
           Install it from your terminal, then click "I installed it — retry" below.
         </p>
 

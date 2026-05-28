@@ -125,6 +125,21 @@ const panels: { id: SidebarPanel; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
+    id: 'hf',
+    label: 'Hugging Face',
+    icon: (
+      // Stylized smiley glyph — universal HF iconography (stroke-only
+      // to match the rest of the sidebar).  Renders distinctly enough
+      // at 18x18 to read as a face without copying HF's exact mark.
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="9" cy="10" r="1" />
+        <circle cx="15" cy="10" r="1" />
+        <path d="M8 14c1.2 1.8 2.6 2.6 4 2.6s2.8-.8 4-2.6" />
+      </svg>
+    ),
+  },
+  {
     id: 'settings',
     label: 'Settings',
     icon: (

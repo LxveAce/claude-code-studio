@@ -200,6 +200,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get: () => ipcRenderer.invoke(IPC.ACCESSIBILITY_GET),
     set: (partial: unknown) => ipcRenderer.invoke(IPC.ACCESSIBILITY_SET, partial),
   },
+  hf: {
+    getSettings: () => ipcRenderer.invoke(IPC.HF_GET_SETTINGS),
+    setSettings: (partial: unknown) => ipcRenderer.invoke(IPC.HF_SET_SETTINGS, partial),
+    search: (opts: unknown) => ipcRenderer.invoke(IPC.HF_SEARCH, opts),
+    modelInfo: (repoId: string) => ipcRenderer.invoke(IPC.HF_MODEL_INFO, repoId),
+    listCached: () => ipcRenderer.invoke(IPC.HF_LIST_CACHED),
+    removeCached: (repoId: string) => ipcRenderer.invoke(IPC.HF_REMOVE_CACHED, repoId),
+    getCachePath: () => ipcRenderer.invoke(IPC.HF_GET_CACHE_PATH),
+    importAndLaunch: (repoId: string, quant: string | null, cwd?: string, research?: boolean) =>
+      ipcRenderer.invoke(IPC.HF_IMPORT_AND_LAUNCH, repoId, quant, cwd ?? null, !!research),
+    getResearchLog: () => ipcRenderer.invoke(IPC.HF_GET_RESEARCH_LOG),
+    clearResearchLog: () => ipcRenderer.invoke(IPC.HF_CLEAR_RESEARCH_LOG),
+  },
   tray: {
     getSettings: () => ipcRenderer.invoke(IPC.TRAY_GET_SETTINGS),
     setSettings: (partial: unknown) =>

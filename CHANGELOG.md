@@ -11,6 +11,69 @@ v2 → v3 = multi-model surface).
 
 ---
 
+## [4.0.0] — 2026-05-28
+
+The **Catalyst UI** release.  Renames the app (formerly **Claude Code
+Studio**), folds in a first-class Hugging Face Hub browser, and lets
+the right panel resize.  No code paths were removed; the Claude Code
+CLI experience is unchanged.
+
+Full notes: `docs/RELEASE_NOTES_v4.0.0.md`.  Migration walk-through:
+`docs/MIGRATING_FROM_CCS.md`.
+
+### Added
+- **Hugging Face panel** in the sidebar with three sub-tabs:
+  - **Browse** — live search the HF Hub, filter by task + GGUF-only,
+    expand any model card to see quants + the "Copy ollama cmd"
+    fallback.
+  - **Cached** — local cache directory listing, per-repo size,
+    Remove button, Refresh.
+  - **Research** — disclaimer-gated opt-in tab for community-curated
+    uncensored / experimental catalogs, with a per-launch audit log
+    (`<userData>/huggingface-research-audit.jsonl`).
+- **Import to Ollama** button on every GGUF variant.  Synthesises a
+  `hf.<repo>.<quant>` (or `hf-research.<repo>.<quant>`) catalog
+  entry, registers it in the Models panel with a "HF Import" /
+  "Research" badge, and launches via the shared `MODELS_LAUNCH`
+  pipeline — same paneId surface as any other model tab.
+- **Resizable right panel** — default width bumped from 320 to **420
+  px**; drag handle on the left edge (4 px hit area) lets the user
+  resize between 280 and 800.  Double-click resets to default.
+  Choice persists in `localStorage`.
+
+### Changed
+- **App renamed to Catalyst UI** (formerly Claude Code Studio).
+  Product name + installer artifacts + start-menu shortcut +
+  TitleBar + StatusBar + popout titles + tray + About + Settings
+  Danger Zone copy + NSIS MessageBoxes all updated.  TitleBar
+  carries a small "(fka Claude Code Studio)" subtitle so users
+  arriving from v3.x recognise the rebrand.
+- **`package.json`** `name` and `productName` changed; `version` 4.0.0;
+  description expanded.
+- **`electron-builder.yml`** `productName`, `artifactName` pattern
+  (`Catalyst-UI-x.y.z-*`), `shortcutName`, and `publish.repo`
+  (`catalyst-ui`) updated.  Windows `appId` deliberately preserved
+  as `com.lxveace.claude-code-studio` so v3.2.1 → v4 is an in-place
+  upgrade.
+
+### Preserved (deliberately)
+- **`userData` directory** still anchored at `%APPDATA%/Claude Code
+  Studio` via `app.setPath()` on `whenReady`.  All v3.x settings,
+  snippets, GitHub PAT, model registry, LMM journal, etc. carry
+  forward without any user action.
+- **Windows `appId`** unchanged — in-place upgrade.
+- **NSIS uninstaller candidate list** still tries the v3 spelling
+  (`Uninstall Claude Code Studio.exe`) so users staying on v3 keep
+  uninstalling normally.
+
+### Migration
+- See `docs/MIGRATING_FROM_CCS.md` for the full walk-through.
+- Auto-update from v3.2.1 → v4.0.0 lands via the same in-app
+  updater path that v3.2.1 fixed (now that `latest.yml` ships in
+  every release).
+
+---
+
 ## [3.2.1] — 2026-05-28
 
 Polish pass driven by user-reported issues in the live v3.2.0 build,

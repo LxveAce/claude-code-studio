@@ -1,8 +1,8 @@
 {
-  "name": "claude-code-studio",
-  "productName": "Claude Code Studio",
-  "version": "3.2.1",
-  "description": "Full desktop GUI for Claude Code with resource monitoring, GitHub integration, compact optimization, and cloud sync",
+  "name": "catalyst-ui",
+  "productName": "Catalyst UI",
+  "version": "4.0.0",
+  "description": "Catalyst UI (formerly Claude Code Studio) — multi-vendor AI workbench: Claude, Hugging Face, Ollama, Aider, Gemini all in one desktop app.",
   "main": ".vite/build/index.js",
   "private": true,
   "scripts": {
@@ -22,8 +22,11 @@
     "dist:publish:linux": "npm run vite:build && electron-builder --linux --publish always"
   },
   "keywords": [
+    "catalyst-ui",
     "claude",
     "claude-code",
+    "huggingface",
+    "ollama",
     "electron",
     "terminal",
     "gui"
@@ -37,6 +40,7 @@
     "node": ">=22.0.0 <24.0.0"
   },
   "dependencies": {
+    "@huggingface/hub": "^2.13.0",
     "@octokit/rest": "^21.0.2",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",

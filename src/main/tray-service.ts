@@ -113,7 +113,7 @@ export class TrayService {
     try {
       const icon = makeTrayIcon();
       this.tray = new Tray(icon);
-      this.tray.setToolTip('Claude Code Studio');
+      this.tray.setToolTip('Catalyst UI');
       this.rebuildMenu();
       this.tray.on('click', () => this.showWindow());
       // Some platforms (Linux) don't always fire 'click' for the icon.

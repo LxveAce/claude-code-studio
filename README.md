@@ -1,10 +1,10 @@
-# Claude Code Studio
+# Catalyst UI
 
-> **One installer. Zero prereqs.** A desktop GUI for [Claude Code](https://claude.com/claude-code)
-> that ships an embedded terminal running `claude`, plus a sidebar of panels for
-> resource monitoring, GitHub integration, compact optimization, cost tracking,
-> and cloud sync. The installer bundles Node and the Claude CLI for you — no
-> separate `npm install -g` step on any platform.
+> **Formerly Claude Code Studio.**  Multi-vendor AI workbench in a single
+> desktop app.  Embedded terminal for Claude Code, plus integrated panels
+> for Hugging Face model discovery, Ollama local models, multi-provider
+> API keys (OpenAI / Gemini / OpenRouter), resource monitoring, GitHub,
+> compact optimization, cost tracking, accessibility, and cloud sync.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-0078D6.svg)
@@ -13,7 +13,7 @@
 ![Electron](https://img.shields.io/badge/Electron-42-47848F.svg)
 
 <p align="center">
-  <img src="./docs/assets/CCS.gif" alt="Claude Code Studio — embedded terminal with sliding sidebar panels" width="800">
+  <img src="./docs/assets/CCS.gif" alt="Catalyst UI — embedded terminal with sliding sidebar panels" width="800">
 </p>
 
 ---
@@ -36,10 +36,11 @@ build-from-source instructions are in [Installing v3.0](#installing-v30) below.
 
 ## Overview
 
-Claude Code Studio embeds the Claude Code CLI in a polished Electron desktop
-app. The core is a genuine terminal (node-pty + xterm.js) running `claude`, with
-a sidebar of panels that add tooling around it — without getting in the way of
-the terminal-first workflow.
+Catalyst UI (formerly Claude Code Studio) embeds the Claude Code CLI in a
+polished Electron desktop app, alongside an integrated Hugging Face Hub
+browser and Ollama bridge.  The core is a genuine terminal (node-pty +
+xterm.js) running `claude` — the sidebar adds tooling around it without
+getting in the way of the terminal-first workflow.
 
 ## Features
 

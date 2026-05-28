@@ -15,6 +15,7 @@ import { SessionService } from './session-service';
 import { HotkeysService } from './hotkeys-service';
 import { TrayService } from './tray-service';
 import { AccessibilityService } from './accessibility-service';
+import { HuggingFaceService } from './huggingface-service';
 import { CostService } from './cost-service';
 import { CliService } from './cli-service';
 import { ModelRegistry } from './model-registry';
@@ -77,6 +78,7 @@ let sessionService: SessionService | null = null;
 let hotkeysService: HotkeysService | null = null;
 let trayService: TrayService | null = null;
 let accessibilityService: AccessibilityService | null = null;
+let huggingfaceService: HuggingFaceService | null = null;
 let costService: CostService | null = null;
 let cliService: CliService | null = null;
 let themeService: ThemeService | null = null;
@@ -192,6 +194,11 @@ function getTray(): TrayService {
 function getAccessibility(): AccessibilityService {
   if (!accessibilityService) accessibilityService = new AccessibilityService();
   return accessibilityService;
+}
+
+function getHuggingFace(): HuggingFaceService {
+  if (!huggingfaceService) huggingfaceService = new HuggingFaceService();
+  return huggingfaceService;
 }
 
 function getCli(): CliService {
@@ -533,53 +540,53 @@ function setupModels() {
       }
       const safeCwd =
         typeof cwd === 'string' && cwd.length > 0 && cwd.length <= 4096 ? cwd : undefined;
-      // paneId = "model:<id>-<timestamp>" — bounded length, only allowed chars.
-      const safeIdPart = model.id.replace(/[^A-Za-z0-9_\-:]/g, '_').slice(0, 40);
-      const paneId = `model:${safeIdPart}-${Date.now().toString(36)}`.slice(0, 64);
-      // Map the model's provider display name → canonical ProviderId (or
-      // null for local/Ollama models that don't need an API key). If we
-      // have a key on file, inject it as the env var the spawned CLI
-      // expects (ANTHROPIC_API_KEY / OPENAI_API_KEY / etc.). The PTY
-      // interceptor also attaches so an interactive prompt from the CLI
-      // can be intercepted + answered via ApiKeyModal.
-      const providerId = normalizeProvider(model.provider);
-      const envInjection: Record<string, string> = providerId
-        ? ProviderAuthService.instance().envForProvider(providerId)
-        : {};
-      try {
-        // Tag for ResourceMonitor's `models` bucket — keeps its RAM/CPU
-        // out of the `claude` bucket and out of `ollama` (the daemon is
-        // tracked separately via process-name scan).
-        ptyRegistry.setPaneCategory(paneId, 'model');
-        ptyRegistry.spawn(paneId, safeCwd, {
-          command: model.command,
-          args: model.args,
-          env: envInjection,
-          label: model.name,
-        });
-        // Only attach the interceptor if we have a provider we know how to
-        // recognize. Avoids extra work on Ollama / Claude (which already
-        // handle their own auth).
-        if (providerId) {
-          ptyKeyInterceptor.attach(paneId, providerId);
-        }
-        syncResourcePids();
-        return {
-          ok: true,
-          paneId,
-          commandLine: ptyRegistry.commandLineFor(paneId),
-          error: null,
-        };
-      } catch (e) {
-        return {
-          ok: false,
-          paneId: null,
-          commandLine: null,
-          error: e instanceof Error ? e.message : String(e),
-        };
-      }
+      return launchModelDefinition(model, safeCwd);
     }
   );
+}
+
+/**
+ * Shared launcher used by MODELS_LAUNCH and HF_IMPORT_AND_LAUNCH.
+ * Synthesises a paneId, spawns the PTY with the model's command line,
+ * attaches the API-key interceptor for providers we know how to
+ * recognise, and returns the standard ModelLaunchResult.
+ *
+ * Lives outside setupModels so the HF wire-up (a separate setup
+ * function) can call it without re-deriving the closure state.
+ */
+function launchModelDefinition(model: ModelDefinition, cwd?: string): ModelLaunchResult {
+  const safeIdPart = model.id.replace(/[^A-Za-z0-9_\-:]/g, '_').slice(0, 40);
+  const paneId = `model:${safeIdPart}-${Date.now().toString(36)}`.slice(0, 64);
+  const providerId = normalizeProvider(model.provider);
+  const envInjection: Record<string, string> = providerId
+    ? ProviderAuthService.instance().envForProvider(providerId)
+    : {};
+  try {
+    ptyRegistry.setPaneCategory(paneId, 'model');
+    ptyRegistry.spawn(paneId, cwd, {
+      command: model.command,
+      args: model.args,
+      env: envInjection,
+      label: model.name,
+    });
+    if (providerId) {
+      ptyKeyInterceptor.attach(paneId, providerId);
+    }
+    syncResourcePids();
+    return {
+      ok: true,
+      paneId,
+      commandLine: ptyRegistry.commandLineFor(paneId),
+      error: null,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      paneId: null,
+      commandLine: null,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
 }
 
 function setupOllama() {
@@ -788,6 +795,11 @@ function setupAppMeta() {
       // Per electron-builder's NSIS layout, the uninstaller lives in $INSTDIR.
       // Name varies by productName: try both spellings before giving up.
       const candidates = [
+        // v4.0.0+ (Catalyst UI productName)
+        path.join(exeDir, 'Uninstall Catalyst UI.exe'),
+        path.join(exeDir, 'Uninstall catalyst-ui.exe'),
+        // v3.x and earlier (Claude Code Studio productName) — kept so
+        // in-place upgrades from those builds still find the old exe.
         path.join(exeDir, 'Uninstall Claude Code Studio.exe'),
         path.join(exeDir, 'Uninstall claude-code-studio.exe'),
       ];
@@ -822,7 +834,7 @@ function setupAppMeta() {
         error: null,
         notice:
           'macOS doesn\'t have a built-in uninstaller. Finder is now open at /Applications — ' +
-          'drag "Claude Code Studio" to the Trash. If you also want to wipe settings + history, ' +
+          'drag "Catalyst UI" to the Trash. If you also want to wipe settings + history, ' +
           'click "Reset user data" first.',
       };
     }
@@ -955,7 +967,7 @@ function setupPopout() {
           minWidth: 400,
           minHeight: 300,
           resizable: true,
-          title: `${safeLabel} — Claude Code Studio`,
+          title: `${safeLabel} — Catalyst UI`,
           parent: mainWindow ?? undefined,
           backgroundColor: '#0a0a14',
           webPreferences: {
@@ -1288,6 +1300,140 @@ function setupAccessibility() {
   });
 }
 
+function setupHuggingFace() {
+  ipcMain.handle(IPC.HF_GET_SETTINGS, () => getHuggingFace().getSettings());
+  ipcMain.handle(IPC.HF_SET_SETTINGS, (_event, partial: unknown) => {
+    if (partial === null || typeof partial !== 'object') {
+      throw new Error('hf set settings: partial must be an object');
+    }
+    return getHuggingFace().setSettings(partial as Record<string, unknown>);
+  });
+  ipcMain.handle(IPC.HF_SEARCH, (_event, opts: unknown) => {
+    if (opts === null || typeof opts !== 'object') {
+      throw new Error('hf search: opts must be an object');
+    }
+    return getHuggingFace().search(opts as Record<string, unknown>);
+  });
+  ipcMain.handle(IPC.HF_MODEL_INFO, (_event, repoId: unknown) => {
+    if (typeof repoId !== 'string') {
+      throw new Error('hf modelInfo: repoId must be a string');
+    }
+    return getHuggingFace().modelInfo(repoId);
+  });
+  ipcMain.handle(IPC.HF_LIST_CACHED, () => getHuggingFace().listCached());
+  ipcMain.handle(IPC.HF_REMOVE_CACHED, (_event, repoId: unknown) => {
+    if (typeof repoId !== 'string') {
+      throw new Error('hf removeCached: repoId must be a string');
+    }
+    return getHuggingFace().removeCached(repoId);
+  });
+  ipcMain.handle(IPC.HF_GET_CACHE_PATH, () => getHuggingFace().getCachePath());
+
+  ipcMain.handle(
+    IPC.HF_IMPORT_AND_LAUNCH,
+    async (
+      _event,
+      repoIdRaw: unknown,
+      quantRaw: unknown,
+      cwdRaw: unknown,
+      researchRaw: unknown
+    ): Promise<ModelLaunchResult> => {
+      if (typeof repoIdRaw !== 'string') {
+        return { ok: false, paneId: null, commandLine: null, error: 'repoId must be a string' };
+      }
+      if (!/^[A-Za-z0-9_.\-]+\/[A-Za-z0-9_.\-]+$/.test(repoIdRaw) || repoIdRaw.length > 256) {
+        return { ok: false, paneId: null, commandLine: null, error: 'invalid repoId' };
+      }
+      const quant =
+        typeof quantRaw === 'string' && /^[A-Za-z0-9_.]+$/.test(quantRaw) && quantRaw.length <= 32
+          ? quantRaw
+          : null;
+      const cwd =
+        typeof cwdRaw === 'string' && cwdRaw.length > 0 && cwdRaw.length <= 4096
+          ? cwdRaw
+          : undefined;
+      const isResearch = researchRaw === true;
+      // Research mode requires the user to have opted in via Settings -> Advanced.
+      if (isResearch && !getHuggingFace().getSettings().researchModeEnabled) {
+        return {
+          ok: false,
+          paneId: null,
+          commandLine: null,
+          error: 'Research mode is disabled.  Enable it in HF -> Research first.',
+        };
+      }
+
+      // Idempotent synthesized id so the SAME repo+quant maps to the
+      // same catalog entry on repeated imports.  Research entries use
+      // a `hf-research.` prefix so they're visually distinct and the
+      // user can filter them out of the regular Models list later.
+      const safeRepo = repoIdRaw.replace('/', '.').replace(/[^A-Za-z0-9_.\-]/g, '_');
+      const safeQuant = quant ?? 'default';
+      const synthId = `${isResearch ? 'hf-research' : 'hf'}.${safeRepo}.${safeQuant.toLowerCase()}`;
+      const ollamaName = `hf.co/${repoIdRaw}${quant ? `:${quant}` : ''}`;
+
+      const reg = ModelRegistry.instance();
+      let model = reg.get(synthId);
+      if (!model) {
+        const fresh: ModelDefinition = {
+          id: synthId,
+          name: `${repoIdRaw}${quant ? ` (${quant})` : ''}`,
+          description: isResearch
+            ? `Research catalog import — runs via Ollama (\`${ollamaName}\`).  Outputs are logged to the audit trail.`
+            : `Imported from Hugging Face — runs via Ollama (\`${ollamaName}\`).`,
+          category: 'local',
+          provider: 'Ollama',
+          command: 'ollama',
+          args: ['run', ollamaName],
+          ollamaName,
+          huggingfaceName: repoIdRaw,
+          architecture: 'dense',
+          recommendedQuant: quant ?? undefined,
+          roles: ['general-chat'],
+          hardwareTiers: ['low', 'mid', 'high'],
+          badge: isResearch ? 'Research' : 'HF Import',
+          recommendedFor: isResearch
+            ? 'Research-only.  Use in a sandboxed environment; outputs are logged for review.'
+            : 'Imported from the Hugging Face panel.  Ollama pulls the weights on first launch.',
+        };
+        try {
+          reg.add(fresh);
+          model = fresh;
+        } catch (e) {
+          return {
+            ok: false,
+            paneId: null,
+            commandLine: null,
+            error: e instanceof Error ? e.message : String(e),
+          };
+        }
+      }
+
+      const result = launchModelDefinition(model, cwd);
+      // Audit log only on successful research-mode launches so we don't
+      // record failed spawns.
+      if (isResearch && result.ok) {
+        try {
+          getHuggingFace().appendAuditEntry({
+            ts: new Date().toISOString(),
+            repoId: repoIdRaw,
+            quant,
+          });
+        } catch {
+          // ignore — best-effort logging
+        }
+      }
+      return result;
+    }
+  );
+
+  ipcMain.handle(IPC.HF_GET_RESEARCH_LOG, () => getHuggingFace().readAuditLog());
+  ipcMain.handle(IPC.HF_CLEAR_RESEARCH_LOG, () => {
+    getHuggingFace().clearAuditLog();
+    return true;
+  });
+}
+
 function setupTray() {
   const tray = getTray();
   tray.attach({
@@ -1343,6 +1489,23 @@ app.on('web-contents-created', (_event, contents) => {
 });
 
 app.whenReady().then(() => {
+  // v4.0.0 (Catalyst UI rename) — preserve the existing user-data
+  // directory so settings, snippets, sessions, GitHub PAT, etc. survive
+  // the rename.  Electron derives userData from productName by default;
+  // since productName changed from "Claude Code Studio" to "Catalyst UI",
+  // the default would point at an empty new directory.  Anchor it to the
+  // historical "Claude Code Studio" folder explicitly so v3.2.1 -> v4
+  // upgrades feel like an upgrade, not a fresh install.  Fresh installs
+  // also use this folder so v4.0.0 onward has a single canonical state
+  // location.
+  try {
+    const appData = app.getPath('appData');
+    app.setPath('userData', path.join(appData, 'Claude Code Studio'));
+  } catch {
+    // If setPath ever fails, the default productName-derived path is the
+    // fallback (fresh dir, but no crash).
+  }
+
   // Windows toast notifications require an AppUserModelID that matches
   // the installer's registered AUMID. Squirrel sets one based on the
   // executable's metadata, but explicitly calling setAppUserModelId
@@ -1386,6 +1549,7 @@ app.whenReady().then(() => {
   setupWindowControls();
   setupHotkeys();
   setupAccessibility();
+  setupHuggingFace();
   setupTray();
 
   // Kick off the auto-updater after a short grace period so the window

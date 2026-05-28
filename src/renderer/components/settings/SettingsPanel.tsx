@@ -718,7 +718,7 @@ export function SettingsPanel() {
           onClick={async () => {
             try {
               await window.electronAPI.cli.resetOnboarding();
-              alert('Re-shown on next restart. Close and reopen Claude Code Studio.');
+              alert('Re-shown on next restart. Close and reopen Catalyst UI.');
             } catch {
               alert('Could not reset onboarding state.');
             }
@@ -861,14 +861,14 @@ function ClaudeCliFlagsSection() {
 }
 
 /**
- * Danger Zone (3.0.0-beta.3) — easier uninstall surface.
+ * Danger Zone — easier uninstall surface.
  *
- *  - "Reset user data" wipes all the JSON files Claude Code Studio wrote
+ *  - "Reset user data" wipes all the JSON files Catalyst UI wrote
  *    (settings, history, registries, debug logs) without uninstalling the
  *    binary. Useful for "start fresh without touching Windows Settings".
  *
- *  - "Uninstall Claude Code Studio" spawns the NSIS uninstaller and quits
- *    the app. Windows-only; on macOS/Linux it surfaces an error and the
+ *  - "Uninstall Catalyst UI" spawns the NSIS uninstaller and quits the
+ *    app. Windows-only; on macOS/Linux it surfaces an error and the
  *    user uses the platform's app manager.
  *
  * Reset is irreversible — confirms first. Uninstall is platform-conditional.
@@ -887,7 +887,7 @@ function DangerZoneSection() {
     try {
       const result = await window.electronAPI.app.resetUserData();
       const msg = result.ok
-        ? `Wiped ${result.removed.length} file(s). Quit and reopen Claude Code Studio to start fresh.`
+        ? `Wiped ${result.removed.length} file(s). Quit and reopen Catalyst UI to start fresh.`
         : `Wiped ${result.removed.length}; ${result.failed.length} couldn't be removed. Check %APPDATA%\\Claude Code Studio.`;
       alert(msg);
     } catch (e) {
@@ -899,7 +899,7 @@ function DangerZoneSection() {
   };
 
   const handleUninstall = async () => {
-    if (!confirm('Launch the Claude Code Studio uninstaller? On Windows the app will close immediately; on macOS / Linux you\'ll see instructions for completing the uninstall manually.')) return;
+    if (!confirm('Launch the Catalyst UI uninstaller? On Windows the app will close immediately; on macOS / Linux you\'ll see instructions for completing the uninstall manually.')) return;
     setBusyUninstall(true);
     try {
       const result = await window.electronAPI.app.openUninstaller();
@@ -972,7 +972,7 @@ function DangerZoneSection() {
             cursor: busyUninstall ? 'wait' : 'pointer',
           }}
         >
-          {busyUninstall ? 'Launching…' : 'Uninstall Claude Code Studio'}
+          {busyUninstall ? 'Launching…' : 'Uninstall Catalyst UI'}
         </button>
       </div>
     </div>

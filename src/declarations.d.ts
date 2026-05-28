@@ -264,6 +264,29 @@ interface Window {
         partial: Partial<import('./shared/types').AccessibilitySettings>
       ) => Promise<import('./shared/types').AccessibilitySettings>;
     };
+    hf: {
+      getSettings: () => Promise<import('./shared/types').HFSettings>;
+      setSettings: (
+        partial: Partial<import('./shared/types').HFSettings>
+      ) => Promise<import('./shared/types').HFSettings>;
+      search: (
+        opts: import('./shared/types').HFSearchOptions
+      ) => Promise<import('./shared/types').HFSearchHit[]>;
+      modelInfo: (
+        repoId: string
+      ) => Promise<import('./shared/types').HFModelCard>;
+      listCached: () => Promise<import('./shared/types').HFCachedEntry[]>;
+      removeCached: (repoId: string) => Promise<boolean>;
+      getCachePath: () => Promise<string>;
+      importAndLaunch: (
+        repoId: string,
+        quant: string | null,
+        cwd?: string,
+        research?: boolean
+      ) => Promise<import('./shared/types').ModelLaunchResult>;
+      getResearchLog: () => Promise<import('./shared/types').HFAuditEntry[]>;
+      clearResearchLog: () => Promise<boolean>;
+    };
     tray: {
       getSettings: () => Promise<import('./shared/types').TraySettings>;
       setSettings: (

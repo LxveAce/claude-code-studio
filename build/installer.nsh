@@ -1,5 +1,5 @@
 ; ============================================================================
-; Claude Code Studio — NSIS bootstrap installer macros
+; Catalyst UI (formerly Claude Code Studio) — NSIS bootstrap installer macros
 ; ============================================================================
 ;
 ; Hooked into electron-builder via `nsis.include` in electron-builder.yml.
@@ -86,7 +86,7 @@ Var OllamaWantsInstall
 ; before shortcuts are created. If we Abort, the whole install rolls back.
 ; ----------------------------------------------------------------------------
 !macro customInstall
-  !insertmacro CCSLog "===== Claude Code Studio bootstrap start ====="
+  !insertmacro CCSLog "===== Catalyst UI bootstrap start ====="
   !insertmacro CCSLog "INSTDIR = $INSTDIR"
 
   ; --- Step 0 (Cat 8): Opt-in Ollama install prompt ---
@@ -97,7 +97,7 @@ Var OllamaWantsInstall
   StrCpy $OllamaWantsInstall "0"
   MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 \
     "Install Ollama for local AI models?$\n$\n\
-Claude Code Studio works fully without it — Claude/Gemini/OpenAI run \
+Catalyst UI works fully without it — Claude/Gemini/OpenAI run \
 fine via the cloud. But if you want to run local models (Qwen, DeepSeek, \
 Llama, etc.), Ollama is the runtime that makes that possible.$\n$\n\
 Choose Yes to download + install Ollama now (~2 GB download). The app \
@@ -208,7 +208,7 @@ You can skip this if you only plan to use Claude or other API-based models." \
     ; onboarding modal detects this via `claude doctor` and offers
     ; "Install Claude CLI" using the bundled Node.
     MessageBox MB_ICONEXCLAMATION|MB_OK \
-      "Claude Code Studio will install, but the Claude CLI couldn't be installed automatically.$\n$\nnpm exit code: $0$\nError: $1$\n$\nThe app's first-launch screen has an 'Install Claude CLI' button that retries this. Or install manually:$\nnpm install -g @anthropic-ai/claude-code$\n$\nFull log: ${INSTALL_LOG}"
+      "Catalyst UI will install, but the Claude CLI couldn't be installed automatically.$\n$\nnpm exit code: $0$\nError: $1$\n$\nThe app's first-launch screen has an 'Install Claude CLI' button that retries this. Or install manually:$\nnpm install -g @anthropic-ai/claude-code$\n$\nFull log: ${INSTALL_LOG}"
     Goto bootstrap_done
   npm_ok:
   !insertmacro CCSLog "Claude Code CLI installed"
@@ -252,7 +252,7 @@ You can skip this if you only plan to use Claude or other API-based models." \
       ; SOFT failure — Studio installs anyway, in-app ModelsPanel surfaces
       ; the install link as a fallback.
       MessageBox MB_ICONEXCLAMATION|MB_OK \
-        "The Ollama installer download failed.$\n$\ncurl exit code: $0$\nError: $1$\n$\nClaude Code Studio will install without it. You can install Ollama later from inside the app's Models panel.$\n$\nFull log: ${INSTALL_LOG}"
+        "The Ollama installer download failed.$\n$\ncurl exit code: $0$\nError: $1$\n$\nCatalyst UI will install without it. You can install Ollama later from inside the app's Models panel.$\n$\nFull log: ${INSTALL_LOG}"
       Goto bootstrap_done
     ollama_dl_ok:
 
@@ -268,13 +268,13 @@ You can skip this if you only plan to use Claude or other API-based models." \
       !insertmacro CCSLog "Ollama installer exited with $0: $1"
       ; SOFT failure again — don't abort our install on a third-party tool's hiccup.
       MessageBox MB_ICONEXCLAMATION|MB_OK \
-        "The Ollama installer didn't complete cleanly (exit $0).$\n$\nClaude Code Studio will install regardless. You can rerun the Ollama installer from inside the app's Models panel.$\n$\nFull log: ${INSTALL_LOG}"
+        "The Ollama installer didn't complete cleanly (exit $0).$\n$\nCatalyst UI will install regardless. You can rerun the Ollama installer from inside the app's Models panel.$\n$\nFull log: ${INSTALL_LOG}"
       Goto bootstrap_done
     ollama_install_ok:
     !insertmacro CCSLog "Ollama installed successfully."
 
   bootstrap_done:
-  !insertmacro CCSLog "===== Claude Code Studio bootstrap complete ====="
+  !insertmacro CCSLog "===== Catalyst UI bootstrap complete ====="
 !macroend
 
 ; ----------------------------------------------------------------------------
@@ -298,7 +298,7 @@ You can skip this if you only plan to use Claude or other API-based models." \
 
   ; Step 2 — prompt for user data wipe. MB_YESNO returns IDYES (6) on yes.
   MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 \
-    "Also remove your Claude Code Studio settings, history, model registry, debug logs, and other JSON state?$\n$\nThese files live under %APPDATA%\Claude Code Studio\ and are written by the app itself (not the installer). Choose Yes to wipe them, No to keep them for a future reinstall.$\n$\nThe Claude CLI's own data (~\.claude\), the Ollama install, and any pulled models are NEVER touched here." \
+    "Also remove your Catalyst UI settings, history, model registry, debug logs, and other JSON state?$\n$\nThese files live under %APPDATA%\Claude Code Studio\ (the original user-data directory we preserved across the rename) and are written by the app itself (not the installer). Choose Yes to wipe them, No to keep them for a future reinstall.$\n$\nThe Claude CLI's own data (~\.claude\), the Ollama install, and any pulled models are NEVER touched here." \
     /SD IDNO \
     IDNO skip_userdata
 

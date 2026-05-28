@@ -54,7 +54,18 @@ export function TitleBar() {
           fontSize: 13,
           letterSpacing: '0.3px',
         }}>
-          Claude Code Studio
+          Catalyst UI
+        </span>
+        <span
+          style={{
+            fontSize: 9,
+            color: 'var(--text-muted)',
+            fontStyle: 'italic',
+            marginLeft: -4,
+          }}
+          title="Formerly known as Claude Code Studio"
+        >
+          (fka Claude Code Studio)
         </span>
         <span style={{
           fontSize: 10,
