@@ -11,6 +11,49 @@ v2 → v3 = multi-model surface).
 
 ---
 
+## [4.0.3] — 2026-05-28
+
+Bug-fix release.  v4.0.2 shipped with four issues users surfaced in
+the dev build — one was an unhandled main-process exception that
+popped a modal error dialog.  Strictly fixes only, no new features.
+
+### Fixed
+- **`Cannot resize a pty that has already exited` crash.**  When a
+  PTY exited (Claude (Chat) fast-exit, Ollama tab close, etc.) and
+  the renderer's ResizeObserver / panel re-flow fired a delayed
+  resize, `PtyManager.resize` called into node-pty on the dead
+  handle — which throws a synchronous exception that surfaced as
+  a JavaScript-error modal dialog at the user.  `PtyManager` now
+  clears `ptyProcess` / `childProcess` in the `onExit` handler so
+  subsequent resize/write calls short-circuit; defensive try/catch
+  in `PtyManager.resize` and `PtyRegistry.resize` for the (rare)
+  case the handle is torn down mid-call.
+- **Claude (Chat) yellow stream-json diagnostic was invisible.**
+  v4.0.2 added a fast-exit detector in `EmbeddedTerminal` that
+  surfaces a yellow `claude --version` / npm-upgrade hint when the
+  CLI rejects the stream-json flags — but the diagnostic was gated
+  on `profile === 'api.anthropic.claude-chat'`, and `ModelsPanel`
+  wasn't passing `profile` to its `EmbeddedTerminal`.  Now passed
+  via `running.find(...).modelId`, so the diagnostic fires both
+  in the in-panel embed and the popout window.  Side effect: the
+  generic "fast exit suggests the CLI rejected something" hint
+  (any non-claude profile, ms < 3000) now fires too — useful for
+  the curated-research Import path when Ollama isn't running.
+- **Commands panel "Stream-JSON mode" empty-state had no way out.**
+  When the active tab is Claude (Chat), the Commands panel just
+  showed the empty-state message with no actionable affordance.
+  Added a CTA banner at the top: "+ Switch to a plain Claude tab"
+  which spawns a new Claude tab and switches the panel to
+  Terminal — the same flow as the `+` button in TerminalTabs.
+
+### Internal
+- All five audit harnesses re-run green at 132/132 after the fixes.
+- Inline-style longhand triplet (`borderWidth` / `borderStyle` /
+  `borderColor`) on the new CTA banner avoids React's
+  "shorthand-mixed-with-longhand" reconciler warning.
+
+---
+
 ## [4.0.2] — 2026-05-28
 
 Second hotfix.  v4.0.1's HF fix went too aggressive in dropping

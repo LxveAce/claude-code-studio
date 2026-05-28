@@ -133,6 +133,12 @@ export class PtyManager extends EventEmitter {
     this.ptyProcess.onExit(({ exitCode }) => {
       this.emit('exit', exitCode);
       this._pid = 0;
+      // Clear the handle so subsequent write/resize calls (which can be
+      // triggered by lagging ResizeObserver / panel re-flow events from the
+      // renderer) short-circuit instead of calling into node-pty and
+      // throwing "Cannot resize a pty that has already exited", which
+      // surfaces as a JavaScript-error modal in the main process.
+      this.ptyProcess = null;
     });
   }
 
@@ -164,6 +170,9 @@ export class PtyManager extends EventEmitter {
     this.childProcess.on('exit', (code) => {
       this.emit('exit', code ?? 1);
       this._pid = 0;
+      // Symmetric to spawnWithPty: drop the handle so post-exit writes/
+      // resizes short-circuit.
+      this.childProcess = null;
     });
   }
 
@@ -176,8 +185,19 @@ export class PtyManager extends EventEmitter {
   }
 
   resize(cols: number, rows: number): void {
+    // Defensive try/catch: even with the ptyProcess=null clear on exit,
+    // node-pty can still throw inside resize() if the underlying conpty
+    // handle was torn down between the null-check and the call (rare,
+    // but observed during fast Claude (Chat) exits — see v4.0.3 fix).
     if (this.ptyProcess) {
-      this.ptyProcess.resize(cols, rows);
+      try {
+        this.ptyProcess.resize(cols, rows);
+      } catch {
+        // PTY exited concurrent with this resize — drop the handle and
+        // move on.  The user already sees the exit message; a modal
+        // error dialog here would just be noise.
+        this.ptyProcess = null;
+      }
     }
   }
 

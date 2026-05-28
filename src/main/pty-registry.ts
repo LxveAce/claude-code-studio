@@ -176,7 +176,14 @@ export class PtyRegistry extends EventEmitter {
   resize(paneId: string, cols: number, rows: number): void {
     const mgr = this.panes.get(paneId);
     if (!mgr) return;
-    mgr.resize(cols, rows);
+    // Defense-in-depth: PtyManager.resize already swallows node-pty's
+    // post-exit throw, but a wrapper here means a future regression in
+    // that swallow can't leak out as a main-process modal error dialog.
+    try {
+      mgr.resize(cols, rows);
+    } catch {
+      // ignore — resize on a dead PTY is benign
+    }
   }
 
   kill(paneId: string): void {

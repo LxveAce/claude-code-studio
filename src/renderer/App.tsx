@@ -620,6 +620,7 @@ export function App() {
                   panel={activePanel}
                   onSendCommand={handleSendCommand}
                   commandFamily={activeCommandFamily}
+                  onSpawnPlainClaudeTab={handleNewClaudeTab}
                 />
               </div>
             </div>
@@ -689,10 +690,12 @@ function RightPanel({
   panel,
   onSendCommand,
   commandFamily,
+  onSpawnPlainClaudeTab,
 }: {
   panel: SidebarPanel;
   onSendCommand: (command: string, submit?: boolean) => void;
   commandFamily: CommandFamily;
+  onSpawnPlainClaudeTab: () => void;
 }) {
   switch (panel) {
     case 'resources':
@@ -702,7 +705,13 @@ function RightPanel({
     case 'cost':
       return <CostPanel />;
     case 'commands':
-      return <CommandsPanel onSendCommand={onSendCommand} family={commandFamily} />;
+      return (
+        <CommandsPanel
+          onSendCommand={onSendCommand}
+          family={commandFamily}
+          onSpawnPlainClaudeTab={onSpawnPlainClaudeTab}
+        />
+      );
     case 'settings':
       return <SettingsPanel />;
     case 'github':

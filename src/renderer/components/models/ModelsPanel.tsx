@@ -828,7 +828,13 @@ export function ModelsPanel() {
               background: 'var(--bg-primary)',
             }}
           >
-            <EmbeddedTerminal paneId={selectedRunningPaneId} compact />
+            <EmbeddedTerminal
+              paneId={selectedRunningPaneId}
+              compact
+              profile={
+                running.find((r) => r.paneId === selectedRunningPaneId)?.modelId
+              }
+            />
           </div>
         )}
       </div>
