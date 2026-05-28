@@ -196,6 +196,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke(IPC.HOTKEYS_SET_BINDING, action, chord),
     reset: () => ipcRenderer.invoke(IPC.HOTKEYS_RESET),
   },
+  accessibility: {
+    get: () => ipcRenderer.invoke(IPC.ACCESSIBILITY_GET),
+    set: (partial: unknown) => ipcRenderer.invoke(IPC.ACCESSIBILITY_SET, partial),
+  },
   tray: {
     getSettings: () => ipcRenderer.invoke(IPC.TRAY_GET_SETTINGS),
     setSettings: (partial: unknown) =>
@@ -235,8 +239,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     launch: (modelId: string, cwd?: string) =>
       ipcRenderer.invoke(IPC.MODELS_LAUNCH, modelId, cwd ?? null),
     openExternal: (url: string) => ipcRenderer.invoke(IPC.MODELS_OPEN_EXTERNAL, url),
-    popout: (paneId: string, label?: string) =>
-      ipcRenderer.invoke(IPC.MODELS_POPOUT, paneId, label ?? null),
+    popout: (paneId: string, label?: string, profile?: string) =>
+      ipcRenderer.invoke(IPC.MODELS_POPOUT, paneId, label ?? null, profile ?? null),
     onboardingGet: () => ipcRenderer.invoke(IPC.MODELS_ONBOARDING_GET),
     onboardingMarkShown: (outcome: 'skipped' | 'completed') =>
       ipcRenderer.invoke(IPC.MODELS_ONBOARDING_MARK_SHOWN, outcome),
@@ -276,6 +280,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     version: () => ipcRenderer.invoke(IPC.APP_VERSION),
     resetUserData: () => ipcRenderer.invoke(IPC.APP_RESET_USER_DATA),
     openUninstaller: () => ipcRenderer.invoke(IPC.APP_OPEN_UNINSTALLER),
+    clipboardWrite: (text: string) => ipcRenderer.invoke(IPC.APP_CLIPBOARD_WRITE, text),
   },
   projectExplorer: {
     listDir: (root: string, target: string) =>

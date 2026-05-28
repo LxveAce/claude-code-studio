@@ -15,9 +15,14 @@ import { EmbeddedTerminal } from './EmbeddedTerminal';
 interface Props {
   paneId: string;
   label: string;
+  /** Catalog profile id of the popped-out tab (e.g. 'api.anthropic.claude-chat').
+   *  Passed through from the main window via the URL so the chat-skin
+   *  overlay picks the correct renderer variant; matches the prop the
+   *  EmbeddedTerminal already expects. */
+  profile?: string;
 }
 
-export function PopoutView({ paneId, label }: Props) {
+export function PopoutView({ paneId, label, profile }: Props) {
   useEffect(() => {
     document.title = `${label} — Claude Code Studio`;
   }, [label]);
@@ -32,7 +37,7 @@ export function PopoutView({ paneId, label }: Props) {
         </span>
       </div>
       <div style={{ flex: 1, padding: 8, minHeight: 0 }}>
-        <EmbeddedTerminal paneId={paneId} compact={false} />
+        <EmbeddedTerminal paneId={paneId} compact={false} profile={profile} />
       </div>
     </div>
   );

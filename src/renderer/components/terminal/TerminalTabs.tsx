@@ -84,6 +84,18 @@ export function TerminalTabs({
   const [pickerQuery, setPickerQuery] = useState('');
   const [closingId, setClosingId] = useState<string | null>(null);
   const [capNotice, setCapNotice] = useState<string | null>(null);
+
+  // Open the profile picker in response to a hotkey-driven custom event
+  // fired by App.tsx (default chord Ctrl+Shift+T -> 'terminal.new-profile').
+  // Same decoupling pattern as the Models search hotkey.
+  useEffect(() => {
+    const onOpenPicker = () => {
+      setPickerQuery('');
+      setPickerOpen(true);
+    };
+    window.addEventListener('terminal-open-profile-picker', onOpenPicker);
+    return () => window.removeEventListener('terminal-open-profile-picker', onOpenPicker);
+  }, []);
   /** `claude --help` capability flags. null = not yet fetched (treated
    *  as "no warning" until we know — false positives on a slow probe
    *  would be more annoying than a missing badge for a few hundred ms). */
@@ -218,7 +230,7 @@ export function TerminalTabs({
       // from the tab strip would orphan the PTY; we keep it instead so the
       // user can close the popout and still get back to the session.
       void window.electronAPI.models
-        .popout(tab.paneId, tab.label)
+        .popout(tab.paneId, tab.label, tab.profile)
         .catch(() => undefined);
     },
     [tabs]
@@ -500,9 +512,12 @@ function NewTabButtons({
     <div style={{ display: 'flex', alignItems: 'center', padding: '0 6px', position: 'relative' }}>
       <button
         type="button"
-        onClick={onAddClaude}
-        title="New Claude tab (Ctrl+Shift+T)"
-        aria-label="New Claude tab"
+        onClick={() => {
+          setPickerOpen(!pickerOpen);
+          setPickerQuery('');
+        }}
+        title="New tab… (Ctrl+Shift+T) — pick Claude or another profile"
+        aria-label="New tab"
         style={{
           ...iconBtn,
           width: 28,
@@ -663,7 +678,17 @@ function ProfilePicker({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search profiles…"
+          onKeyDown={(e) => {
+            // Enter on empty query: confirm the default Claude entry,
+            // matching the visual "Claude (default)" pinned card above.
+            // Lets the Ctrl+Shift+T hotkey flow into Enter for the
+            // single-keystroke "new Claude tab" path.
+            if (e.key === 'Enter' && !query.trim()) {
+              e.preventDefault();
+              onPickClaude();
+            }
+          }}
+          placeholder="Search profiles… (Enter to pick Claude)"
           style={{
             width: '100%',
             padding: '6px 8px',

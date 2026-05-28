@@ -30,22 +30,26 @@ jobs:
           - os: windows-latest
             label: windows
             build_cmd: npm run dist
-            # Globs for the user-facing files we actually want on the release.
-            # Excludes .exe.blockmap (delta-update metadata), .nsis.7z
-            # (intermediate), latest.yml (auto-updater manifest).
-            upload_glob: dist/Claude-Code-Studio-*-Windows.exe
+            # Globs for the user-facing installer + the latest.yml
+            # auto-updater manifest. We exclude .exe.blockmap (delta
+            # metadata) and .nsis.7z (intermediate) to keep the release
+            # page clean, but latest.yml is REQUIRED for in-app updates —
+            # without it electron-updater 404s on every check.
+            upload_glob: dist/Claude-Code-Studio-*-Windows.exe dist/latest.yml
           - os: macos-latest
             label: macos
             build_cmd: npm run dist:mac
-            # Just the DMG. No .zip (was for auto-updater), no .blockmap.
-            upload_glob: dist/Claude-Code-Studio-*-Mac.dmg
+            # DMG + latest-mac.yml. .zip (the auto-updater payload format
+            # for macOS) is still excluded for v3.2.1; updates will land
+            # via the next signed/notarized release pass.
+            upload_glob: dist/Claude-Code-Studio-*-Mac.dmg dist/latest-mac.yml
           - os: ubuntu-latest
             label: linux
-            # Three distinct installers, one per distro family. No
-            # latest-linux.yml. Use a single glob string and let the
-            # `for f in $glob` loop in the upload step expand it.
+            # Three distinct installers, one per distro family, plus the
+            # AppImage's latest-linux.yml. deb/rpm rely on the distro
+            # package manager — only AppImage uses electron-updater.
             build_cmd: npm run dist:linux
-            upload_glob: dist/Claude-Code-Studio-*-Linux-Universal.AppImage dist/Claude-Code-Studio-*-Linux-Debian.deb dist/Claude-Code-Studio-*-Linux-Fedora.rpm
+            upload_glob: dist/Claude-Code-Studio-*-Linux-Universal.AppImage dist/Claude-Code-Studio-*-Linux-Debian.deb dist/Claude-Code-Studio-*-Linux-Fedora.rpm dist/latest-linux.yml
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

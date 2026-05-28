@@ -481,12 +481,60 @@ export function ModelsPanel() {
     setRunning((prev) => prev.filter((r) => r.paneId !== paneId));
   };
 
+  // Per-model "Copied!" toast state. We keep the id of the most-recently
+  // copied model + a timestamp; the card renders "Copied!" while the id
+  // matches and the timer hasn't elapsed.
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (copyToastTimer.current) clearTimeout(copyToastTimer.current);
+  }, []);
+
+  // Ref to the catalog search input. App.tsx dispatches a
+  // 'models-focus-search' window event when the user hits the
+  // models.focus-search hotkey (default Ctrl+F) so we can focus +
+  // select without lifting the input ref through the panel tree.
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const onFocusReq = () => {
+      const el = searchInputRef.current;
+      if (!el) return;
+      el.focus();
+      try {
+        el.select();
+      } catch {
+        // some input types don't support select; the focus is enough
+      }
+    };
+    window.addEventListener('models-focus-search', onFocusReq);
+    return () => window.removeEventListener('models-focus-search', onFocusReq);
+  }, []);
+
   const handleCopyCommand = async (m: ModelDefinition) => {
     const cmdLine = [m.command, ...(m.args ?? [])].join(' ');
+    // Prefer Electron's clipboard via IPC — reliable regardless of focus
+    // state. Fall back to navigator.clipboard for dev-mode where the
+    // bridge may not be wired.
+    let ok = false;
     try {
-      await navigator.clipboard.writeText(cmdLine);
+      ok = await window.electronAPI.app.clipboardWrite(cmdLine);
     } catch {
-      // ignore
+      ok = false;
+    }
+    if (!ok) {
+      try {
+        await navigator.clipboard.writeText(cmdLine);
+        ok = true;
+      } catch {
+        ok = false;
+      }
+    }
+    if (ok) {
+      setCopiedId(m.id);
+      if (copyToastTimer.current) clearTimeout(copyToastTimer.current);
+      copyToastTimer.current = setTimeout(() => setCopiedId(null), 2000);
+    } else {
+      alert(`Could not copy to clipboard. Command:\n\n${cmdLine}`);
     }
   };
 
@@ -556,39 +604,46 @@ export function ModelsPanel() {
         <TabButton label={`API Models (${counts.api})`} active={tab === 'api'} onClick={() => setTab('api')} />
       </div>
 
-      {tab === 'local' && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            type="search"
-            placeholder="Search 30+ models…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={searchInputStyle}
-          />
-          <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value as TierFilter)} style={selectStyle}>
-            <option value="all">All tiers</option>
-            <option value="toaster">Toaster (≤8 GB)</option>
-            <option value="low">Low (8-16 GB)</option>
-            <option value="mid">Mid (16-32 GB)</option>
-            <option value="high">High (24 GB VRAM)</option>
-            <option value="workstation">Workstation (48+ GB)</option>
-          </select>
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as RoleFilter)} style={selectStyle}>
-            <option value="all">All roles</option>
-            <option value="general-chat">General chat</option>
-            <option value="frontend">Frontend</option>
-            <option value="backend">Backend</option>
-            <option value="polyglot-code">Polyglot code</option>
-            <option value="reasoning">Reasoning</option>
-            <option value="vision">Vision</option>
-            <option value="long-context">Long context</option>
-            <option value="edge">Edge / tiny</option>
-            <option value="embedding">Embedding</option>
-            <option value="agentic">Agentic</option>
-            <option value="data">Data</option>
-          </select>
-        </div>
-      )}
+      {/* Search bar — visible on BOTH tabs so users can filter API
+          entries too. Tier/role selects only matter for the local
+          catalog, so they remain gated to the local tab. */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input
+          ref={searchInputRef}
+          type="search"
+          placeholder={tab === 'local' ? 'Search 30+ local models… (Ctrl+F)' : 'Search API providers… (Ctrl+F)'}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={searchInputStyle}
+          aria-label="Search models"
+        />
+        {tab === 'local' && (
+          <>
+            <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value as TierFilter)} style={selectStyle}>
+              <option value="all">All tiers</option>
+              <option value="toaster">Toaster (≤8 GB)</option>
+              <option value="low">Low (8-16 GB)</option>
+              <option value="mid">Mid (16-32 GB)</option>
+              <option value="high">High (24 GB VRAM)</option>
+              <option value="workstation">Workstation (48+ GB)</option>
+            </select>
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as RoleFilter)} style={selectStyle}>
+              <option value="all">All roles</option>
+              <option value="general-chat">General chat</option>
+              <option value="frontend">Frontend</option>
+              <option value="backend">Backend</option>
+              <option value="polyglot-code">Polyglot code</option>
+              <option value="reasoning">Reasoning</option>
+              <option value="vision">Vision</option>
+              <option value="long-context">Long context</option>
+              <option value="edge">Edge / tiny</option>
+              <option value="embedding">Embedding</option>
+              <option value="agentic">Agentic</option>
+              <option value="data">Data</option>
+            </select>
+          </>
+        )}
+      </div>
 
       <div style={runningSectionStyle}>
         {/* Tab strip — terminal-app style. Each running model is a tab;
@@ -660,7 +715,7 @@ export function ModelsPanel() {
                   onClick={(e) => {
                     e.stopPropagation();
                     void window.electronAPI.models
-                      .popout(r.paneId, r.modelName)
+                      .popout(r.paneId, r.modelName, r.modelId)
                       .catch(() => undefined);
                   }}
                   title="Pop out into its own window"
@@ -799,6 +854,7 @@ export function ModelsPanel() {
             onDelete={() => handleDelete(m)}
             onLaunch={() => handleLaunch(m)}
             onCopy={() => handleCopyCommand(m)}
+            recentlyCopied={copiedId === m.id}
             onOpenLicense={() => handleOpenLicense(m)}
           />
         ))}
@@ -1072,6 +1128,7 @@ function ModelCard({
   onDelete,
   onLaunch,
   onCopy,
+  recentlyCopied,
   onOpenLicense,
 }: {
   model: ModelDefinition;
@@ -1084,6 +1141,7 @@ function ModelCard({
   onDelete: () => void;
   onLaunch: () => void;
   onCopy: () => void;
+  recentlyCopied?: boolean;
   onOpenLicense: () => void;
 }) {
   const pulling = !!pull && !pull.done && !pull.error;
@@ -1216,8 +1274,13 @@ function ModelCard({
             Launch in app
           </button>
         )}
-        <button type="button" onClick={onCopy} style={btnStyle}>
-          Copy command
+        <button
+          type="button"
+          onClick={onCopy}
+          style={recentlyCopied ? { ...btnStyle, color: '#22c55e', borderColor: '#22c55e' } : btnStyle}
+          aria-live="polite"
+        >
+          {recentlyCopied ? '✓ Copied!' : 'Copy command'}
         </button>
         {model.licenseFlag && model.licenseUrl && (
           <button type="button" onClick={onOpenLicense} style={{ ...btnStyle, color: '#fbbf24' }}>
@@ -1392,14 +1455,18 @@ const specGridStyle: React.CSSProperties = {
 };
 
 const searchInputStyle: React.CSSProperties = {
+  // v3.2.1 — bumped from 140/font 11/padding 4x8 because the old
+  // search bar was hard to see and use (Item 4 in
+  // docs/PLAN_2026-05-28_10-items.md).  Larger target, larger
+  // font, sits visually as a first-class element next to the tabs.
   flex: 1,
-  minWidth: 140,
+  minWidth: 280,
   background: 'var(--bg-primary)',
   border: '1px solid var(--border)',
   color: 'var(--text-primary)',
-  fontSize: 11,
-  padding: '4px 8px',
-  borderRadius: 4,
+  fontSize: 13,
+  padding: '8px 12px',
+  borderRadius: 6,
 };
 
 const selectStyle: React.CSSProperties = {

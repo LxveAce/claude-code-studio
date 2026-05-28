@@ -127,32 +127,55 @@ export function EmbeddedTerminal({
       term.write(`\r\n\x1b[2m[process exited with code ${code}]\x1b[0m\r\n`);
     });
 
-    // 3.0.0-beta.3: probe whether the PTY actually exists. If the user
-    // clicks Pop-out on a stale running-list entry (e.g. after panel
-    // re-mount with a launched PTY that died while away), the embed will
-    // be silent forever — write a placeholder so they know what happened.
-    // PR #23 (post-handoff): also harvest the PID from the same probe
-    // and fire onPidChange so the StatusBar PID footer surfaces a real
-    // number for model tabs (mirrors TerminalPanel's onReady wiring,
-    // which doesn't exist for already-spawned PTYs).
-    setTimeout(() => {
+    // Probe whether the PTY actually exists, with a soft retry before
+    // we declare it dead.  Item 7 of docs/PLAN_2026-05-28_10-items.md:
+    // the previous 1.5s probe would print a scary "paneId not found"
+    // message in a popout that just hadn't received its first
+    // listRunning() reply yet.  Now: probe at 1.5s, retry at 4s if the
+    // first probe came back empty, only print the cold message after
+    // the second negative probe.
+    const probeAttempt = async (): Promise<{ alive: boolean; pid: number }> => {
+      try {
+        const live = await window.electronAPI.models.listRunning();
+        const myPane = live.find((p) => p.paneId === paneId);
+        return { alive: !!myPane, pid: myPane?.pid ?? 0 };
+      } catch {
+        // listRunning unavailable — treat as inconclusive (alive=false)
+        // and let the retry decide; if the IPC stays broken, the cold
+        // message still prints at the end.
+        return { alive: false, pid: 0 };
+      }
+    };
+    const probeTimers: ReturnType<typeof setTimeout>[] = [];
+    let cancelledProbe = false;
+    probeTimers.push(setTimeout(() => {
       void (async () => {
-        try {
-          const live = await window.electronAPI.models.listRunning();
-          const myPane = live.find((p) => p.paneId === paneId);
-          if (!myPane) {
+        if (cancelledProbe) return;
+        const first = await probeAttempt();
+        if (cancelledProbe) return;
+        if (first.alive) {
+          if (first.pid > 0) onPidChange?.(paneId, first.pid);
+          return;
+        }
+        // First probe came back empty — could be transient (popout
+        // mounted before main settled, listRunning lagged, etc.).
+        term.write(`\x1b[2m[re-attaching to ${paneId}…]\x1b[0m\r\n`);
+        probeTimers.push(setTimeout(() => {
+          void (async () => {
+            if (cancelledProbe) return;
+            const second = await probeAttempt();
+            if (cancelledProbe) return;
+            if (second.alive) {
+              term.write(`\x1b[2m[ok, attached]\x1b[0m\r\n`);
+              if (second.pid > 0) onPidChange?.(paneId, second.pid);
+              return;
+            }
             term.write(`\x1b[33m[paneId ${paneId} not found — the model may have exited.]\x1b[0m\r\n`);
             term.write(`\x1b[2mClose this view and Launch again from the Models panel.\x1b[0m\r\n`);
-            return;
-          }
-          if (myPane.pid > 0) {
-            onPidChange?.(paneId, myPane.pid);
-          }
-        } catch {
-          // listRunning unavailable — skip the warning; the PTY may still be live
-        }
+          })();
+        }, 2500));
       })();
-    }, 1500);
+    }, 1500));
 
     const offUserInput = term.onData((data) => {
       window.electronAPI.terminal.sendInput(paneId, data);
@@ -170,6 +193,8 @@ export function EmbeddedTerminal({
     ro.observe(host);
 
     return () => {
+      cancelledProbe = true;
+      for (const t of probeTimers) clearTimeout(t);
       ro.disconnect();
       offData();
       offExit();
@@ -180,6 +205,21 @@ export function EmbeddedTerminal({
       fitRef.current = null;
     };
   }, [paneId, compact, fitIfChanged, registerSender, onPidChange]);
+
+  // Sync chat-skin toggle across windows for the same paneId.  Main and
+  // popout both keep their own React state; when one toggles, the other
+  // sees the localStorage 'storage' event and updates.  Fires only on
+  // OTHER windows than the writer (browser semantics), so the local
+  // toggleSkin keeps its existing optimistic state update.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== `chat-skin:${paneId}`) return;
+      const next = e.newValue === '1';
+      setSkinOn(next);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [paneId]);
 
   // Mirror TerminalPanel's auto-focus-on-starter-command behavior so
   // model tabs (Ollama's `/set system `, etc.) get keyboard focus

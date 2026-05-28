@@ -258,6 +258,12 @@ interface Window {
       ) => Promise<import('./shared/types').HotkeySettings>;
       reset: () => Promise<import('./shared/types').HotkeySettings>;
     };
+    accessibility: {
+      get: () => Promise<import('./shared/types').AccessibilitySettings>;
+      set: (
+        partial: Partial<import('./shared/types').AccessibilitySettings>
+      ) => Promise<import('./shared/types').AccessibilitySettings>;
+    };
     tray: {
       getSettings: () => Promise<import('./shared/types').TraySettings>;
       setSettings: (
@@ -286,7 +292,7 @@ interface Window {
       recommend: (cwd?: string) => Promise<import('./shared/types').ModelRecommendation[]>;
       launch: (modelId: string, cwd?: string) => Promise<import('./shared/types').ModelLaunchResult>;
       openExternal: (url: string) => Promise<boolean>;
-      popout: (paneId: string, label?: string) => Promise<import('./shared/types').ModelPopoutResult>;
+      popout: (paneId: string, label?: string, profile?: string) => Promise<import('./shared/types').ModelPopoutResult>;
       onboardingGet: () => Promise<import('./shared/types').ModelsOnboardingState>;
       onboardingMarkShown: (
         outcome: 'skipped' | 'completed'
@@ -330,6 +336,7 @@ interface Window {
       version: () => Promise<string>;
       resetUserData: () => Promise<import('./shared/types').AppResetResult>;
       openUninstaller: () => Promise<{ ok: boolean; error: string | null; notice: string | null }>;
+      clipboardWrite: (text: string) => Promise<boolean>;
     };
     projectExplorer: {
       listDir: (

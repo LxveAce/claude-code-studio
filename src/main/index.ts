@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import { PtyRegistry } from './pty-registry';
 import { ResourceMonitor } from './resource-monitor';
@@ -14,6 +14,7 @@ import { UpdaterService } from './updater-service';
 import { SessionService } from './session-service';
 import { HotkeysService } from './hotkeys-service';
 import { TrayService } from './tray-service';
+import { AccessibilityService } from './accessibility-service';
 import { CostService } from './cost-service';
 import { CliService } from './cli-service';
 import { ModelRegistry } from './model-registry';
@@ -75,6 +76,7 @@ let updaterService: UpdaterService | null = null;
 let sessionService: SessionService | null = null;
 let hotkeysService: HotkeysService | null = null;
 let trayService: TrayService | null = null;
+let accessibilityService: AccessibilityService | null = null;
 let costService: CostService | null = null;
 let cliService: CliService | null = null;
 let themeService: ThemeService | null = null;
@@ -185,6 +187,11 @@ function getHotkeys(): HotkeysService {
 function getTray(): TrayService {
   if (!trayService) trayService = new TrayService();
   return trayService;
+}
+
+function getAccessibility(): AccessibilityService {
+  if (!accessibilityService) accessibilityService = new AccessibilityService();
+  return accessibilityService;
 }
 
 function getCli(): CliService {
@@ -479,7 +486,8 @@ function setupModels() {
     }
     if (parsed.protocol !== 'https:') return false;
     const host = parsed.hostname.toLowerCase();
-    // Model-related allowlist: official license sources + model registries.
+    // Allowlist: official license sources, model registries, and the
+    // PROVIDER_KEY_URL targets in ApiKeyModal so "Get a key →" works.
     const allowed =
       host === 'ollama.com' ||
       host.endsWith('.ollama.com') ||
@@ -490,8 +498,17 @@ function setupModels() {
       host.endsWith('.llama.com') ||
       host === 'www.bigcode-project.org' ||
       host === 'bigcode-project.org' ||
-      host === 'github.com';
-    if (!allowed) return false;
+      host === 'github.com' ||
+      // Provider key portals — must match ApiKeyModal PROVIDER_KEY_URL.
+      host === 'console.anthropic.com' ||
+      host === 'platform.openai.com' ||
+      host === 'aistudio.google.com' ||
+      host === 'openrouter.ai' ||
+      host.endsWith('.openrouter.ai');
+    if (!allowed) {
+      console.warn(`[openExternal] blocked URL outside allowlist: ${parsed.toString()}`);
+      return false;
+    }
     void shell.openExternal(parsed.toString());
     return true;
   });
@@ -699,6 +716,22 @@ function setupAppMeta() {
   // tri-version drift observed in beta.1.
   ipcMain.handle(IPC.APP_VERSION, () => app.getVersion());
 
+  // Reliable clipboard write via Electron's main-process clipboard.
+  // navigator.clipboard.writeText in the renderer can silently no-op when
+  // the window isn't focused; the main-process path always works.
+  ipcMain.handle(IPC.APP_CLIPBOARD_WRITE, (_event, text: unknown) => {
+    if (typeof text !== 'string') return false;
+    // Cap length to avoid OOM if a caller goes wild; 1 MB is plenty for
+    // command lines, snippets, model commands, etc.
+    if (text.length > 1_000_000) return false;
+    try {
+      clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
   // Danger-zone: wipe everything in <userData> EXCEPT Electron's own
   // Cache / Local Storage / etc. dirs (those rebuild themselves). We
   // only nuke the JSON-y state files we ourselves wrote — keeps the
@@ -875,7 +908,7 @@ function setupFirstRun() {
 function setupPopout() {
   ipcMain.handle(
     IPC.MODELS_POPOUT,
-    (_event, paneId: unknown, label: unknown): ModelPopoutResult => {
+    (_event, paneId: unknown, label: unknown, profile: unknown): ModelPopoutResult => {
       if (!PtyRegistry.isValidPaneId(paneId)) {
         return { ok: false, windowId: null, error: 'invalid paneId' };
       }
@@ -894,6 +927,15 @@ function setupPopout() {
         typeof label === 'string' && label.length > 0 && label.length <= 128
           ? label
           : 'Model';
+      // The profile string is a catalog id (or 'claude' for the bundled CLI).
+      // We URL-encode it into the popout query so the popout renderer can
+      // pick the correct chat-skin variant (TUI vs stream-json) without
+      // round-tripping to main.  Length bound + character allowlist to
+      // keep the URL clean.
+      const safeProfile =
+        typeof profile === 'string' && profile.length > 0 && profile.length <= 128 && /^[a-zA-Z0-9._\-:]+$/.test(profile)
+          ? profile
+          : null;
       const popoutId = `models-popout:${paneId}`;
       const savedPopoutState = getWindowState().loadState(popoutId, {
         x: -1,
@@ -933,8 +975,11 @@ function setupPopout() {
 
         // Load the same HTML the main window uses, with query params the
         // renderer's popout-mode branch parses. URL-encode the label so
-        // the renderer can display it in the title bar.
-        const query = `?popout=${encodeURIComponent(paneId)}&label=${encodeURIComponent(safeLabel)}`;
+        // the renderer can display it in the title bar.  profile is
+        // optional — older callers omit it; renderer falls back to the
+        // generic chat-skin path if not present.
+        const profileQ = safeProfile ? `&profile=${encodeURIComponent(safeProfile)}` : '';
+        const query = `?popout=${encodeURIComponent(paneId)}&label=${encodeURIComponent(safeLabel)}${profileQ}`;
         if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
           void win.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${query}`);
         } else {
@@ -1233,6 +1278,16 @@ function setupHotkeys() {
   ipcMain.handle(IPC.HOTKEYS_RESET, () => getHotkeys().resetDefaults());
 }
 
+function setupAccessibility() {
+  ipcMain.handle(IPC.ACCESSIBILITY_GET, () => getAccessibility().get());
+  ipcMain.handle(IPC.ACCESSIBILITY_SET, (_event, partial: unknown) => {
+    if (partial === null || typeof partial !== 'object') {
+      throw new Error('accessibility set: partial must be an object');
+    }
+    return getAccessibility().set(partial as Record<string, unknown>);
+  });
+}
+
 function setupTray() {
   const tray = getTray();
   tray.attach({
@@ -1330,6 +1385,7 @@ app.whenReady().then(() => {
   setupRunningModels();
   setupWindowControls();
   setupHotkeys();
+  setupAccessibility();
   setupTray();
 
   // Kick off the auto-updater after a short grace period so the window

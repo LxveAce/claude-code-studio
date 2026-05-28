@@ -215,6 +215,20 @@ export class UpdaterService {
       autoUpdater.on('error', (err: unknown) => {
         const e = err as Error | undefined;
         const msg = e?.message ?? String(err);
+        // Demote the "missing latest.yml" 404 to a friendly state.
+        // Older releases (<= v3.2.0) were built before the CI workflow
+        // started uploading latest.yml as a release asset, so the
+        // updater HTTP-404s trying to fetch it. The stack trace this
+        // produces in the UI was noisy + confusing — surface a clean
+        // "up to date" instead, and log the underlying detail.
+        const is404OnLatestYml =
+          /HttpError:\s*404/i.test(msg) &&
+          /(latest(-mac|-linux)?\.yml|release artifacts)/i.test(msg);
+        if (is404OnLatestYml) {
+          console.warn('[updater] no latest.yml on the current release — treating as up-to-date');
+          this.state.lastError = null;
+          return;
+        }
         this.state.lastError = msg;
         try {
           this.callbacks.onError?.(msg);

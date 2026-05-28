@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   LMMCycle,
   LMMCycleSummary,
@@ -6,6 +6,7 @@ import type {
   LMMSettings,
   LMMVariant,
 } from '../../../shared/types';
+import type { CommandFamily } from '../commands/command-families';
 
 const PHASE_LABEL: Record<LMMPhase, string> = {
   raw: 'RAW',
@@ -23,7 +24,18 @@ const PHASE_HINT: Record<LMMPhase, string> = {
 
 const PHASE_ORDER: LMMPhase[] = ['raw', 'nodes', 'reflect', 'synth'];
 
-export function LMMPanel() {
+interface LMMPanelProps {
+  /** CommandFamily of the currently focused terminal tab.  The panel only
+   *  applies to Claude tabs (LMM journaling is a Claude-conversation
+   *  practice), so non-Claude families get a "switch to a Claude tab"
+   *  stub instead of the editor.  Passed from App.tsx so the panel
+   *  tracks tab focus changes live. */
+  activeFamily?: CommandFamily;
+}
+
+const LMM_APPLICABLE_FAMILIES = new Set<CommandFamily>(['claude', 'claude-chat']);
+
+export function LMMPanel({ activeFamily = 'claude' }: LMMPanelProps = {}) {
   const [settings, setSettings] = useState<LMMSettings | null>(null);
   const [cycles, setCycles] = useState<LMMCycleSummary[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -34,6 +46,13 @@ export function LMMPanel() {
   const [showSettings, setShowSettings] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // In-app "+ New cycle" modal state. Replaces window.prompt() (which
+  // was unreliable in Electron and looked broken to users in some
+  // window-focus states).
+  const [newCycleOpen, setNewCycleOpen] = useState(false);
+  const [newCycleTitle, setNewCycleTitle] = useState('');
+  const newCycleInputRef = useRef<HTMLInputElement | null>(null);
 
   const refresh = useCallback(async () => {
     const s = await window.electronAPI.lmm.getSettings();
@@ -49,6 +68,22 @@ export function LMMPanel() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Re-fetch whenever the active tab's CommandFamily changes. Same
+  // pattern the Commands sidebar uses to stay in sync with the focused
+  // tab. Cheap: just two IPC calls.
+  useEffect(() => {
+    void refresh();
+  }, [activeFamily, refresh]);
+
+  // Focus the title input when the new-cycle modal opens.
+  useEffect(() => {
+    if (newCycleOpen) {
+      // Defer until after render so the ref is mounted.
+      const t = setTimeout(() => newCycleInputRef.current?.focus(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [newCycleOpen]);
 
   const loadCycle = useCallback(async (id: string, targetPhase?: LMMPhase) => {
     const cycle = await window.electronAPI.lmm.getCycle(id);
@@ -101,12 +136,21 @@ export function LMMPanel() {
     }
   };
 
-  const handleNewCycle = async () => {
-    const title = window.prompt('New LMM cycle title:');
-    if (!title || !title.trim()) return;
+  const handleOpenNewCycle = () => {
+    setNewCycleTitle('');
+    setErr(null);
+    setNewCycleOpen(true);
+  };
+
+  const handleNewCycleSubmit = async () => {
+    const title = newCycleTitle.trim();
+    if (!title) {
+      setErr('Title cannot be empty.');
+      return;
+    }
     setBusy(true);
     try {
-      const cycle = await window.electronAPI.lmm.createCycle(title.trim());
+      const cycle = await window.electronAPI.lmm.createCycle(title);
       const list = await window.electronAPI.lmm.listCycles();
       setCycles(list);
       setActiveId(cycle.id);
@@ -114,6 +158,8 @@ export function LMMPanel() {
       setPhase('raw');
       setDraft('');
       setDirty(false);
+      setNewCycleOpen(false);
+      setNewCycleTitle('');
     } catch (e: unknown) {
       setErr(extractError(e));
     } finally {
@@ -181,6 +227,30 @@ export function LMMPanel() {
         Lincoln Manifold Method
       </h3>
 
+      {/* v3.2.1 — focus-aware. LMM only applies to Claude tabs (the
+          journaling discipline is about Claude conversations).  Show a
+          quick hint for non-Claude active tabs so the user understands
+          why the editor isn't available.  We still let them toggle
+          settings (e.g. enable/disable journaling globally) — only the
+          per-cycle editor + button are gated. */}
+      {!LMM_APPLICABLE_FAMILIES.has(activeFamily) && (
+        <div
+          role="note"
+          style={{
+            marginBottom: 10,
+            padding: '8px 10px',
+            background: 'var(--bg-primary)',
+            border: '1px dashed var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            lineHeight: 1.5,
+          }}
+        >
+          The active tab is a <strong style={{ color: 'var(--text-secondary)' }}>{activeFamily}</strong> session — LMM journaling is designed for Claude conversations. Switch to (or open) a Claude tab to start a new cycle.
+        </div>
+      )}
+
       {settings && (
         <ToggleCard
           enabled={settings.enabled}
@@ -200,10 +270,30 @@ export function LMMPanel() {
           />
 
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-            <button onClick={handleNewCycle} disabled={busy} style={primaryBtn}>
+            <button
+              onClick={handleOpenNewCycle}
+              disabled={busy || !LMM_APPLICABLE_FAMILIES.has(activeFamily)}
+              style={primaryBtn}
+              title={!LMM_APPLICABLE_FAMILIES.has(activeFamily) ? 'Switch to a Claude tab to start a new LMM cycle' : undefined}
+            >
               + New cycle
             </button>
           </div>
+
+          {newCycleOpen && (
+            <NewCycleModal
+              titleRef={newCycleInputRef}
+              title={newCycleTitle}
+              busy={busy}
+              onTitleChange={setNewCycleTitle}
+              onSubmit={() => void handleNewCycleSubmit()}
+              onCancel={() => {
+                setNewCycleOpen(false);
+                setNewCycleTitle('');
+                setErr(null);
+              }}
+            />
+          )}
 
           {err && <ErrorBanner>{err}</ErrorBanner>}
 
@@ -694,6 +784,101 @@ function ErrorBanner({ children }: { children: React.ReactNode }) {
       fontSize: 11,
     }}>
       {children}
+    </div>
+  );
+}
+
+function NewCycleModal({
+  title,
+  titleRef,
+  busy,
+  onTitleChange,
+  onSubmit,
+  onCancel,
+}: {
+  title: string;
+  titleRef: React.RefObject<HTMLInputElement | null>;
+  busy: boolean;
+  onTitleChange: (v: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      style={{
+        marginBottom: 10,
+        padding: 10,
+        background: 'var(--bg-primary)',
+        border: '1px solid var(--border-active)',
+        borderRadius: 'var(--radius-md)',
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+        New LMM cycle
+      </div>
+      <input
+        ref={titleRef}
+        type="text"
+        value={title}
+        onChange={(e) => onTitleChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onSubmit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        placeholder="Cycle title (e.g. refactor-auth-flow)"
+        maxLength={80}
+        disabled={busy}
+        style={{
+          width: '100%',
+          padding: '6px 8px',
+          fontSize: 12,
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          color: 'var(--text-primary)',
+          fontFamily: 'inherit',
+          boxSizing: 'border-box',
+        }}
+      />
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'flex-end' }}>
+        <button
+          onClick={onCancel}
+          disabled={busy}
+          style={{
+            padding: '5px 10px',
+            borderRadius: 4,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            fontSize: 11,
+            cursor: busy ? 'wait' : 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onSubmit}
+          disabled={busy || !title.trim()}
+          style={{
+            padding: '5px 10px',
+            borderRadius: 4,
+            border: 'none',
+            background: 'var(--accent-gradient)',
+            color: '#fff',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: busy || !title.trim() ? 'not-allowed' : 'pointer',
+            opacity: busy || !title.trim() ? 0.6 : 1,
+          }}
+        >
+          {busy ? 'Creating…' : 'Create'}
+        </button>
+      </div>
     </div>
   );
 }

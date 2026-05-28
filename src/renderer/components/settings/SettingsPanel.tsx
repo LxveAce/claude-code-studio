@@ -13,6 +13,7 @@ import type {
 import { ACTION_LABELS, chordFromEvent } from '../../hotkeys';
 import { ThemeEditor } from './ThemeEditor';
 import { ProviderKeysList } from '../auth/ProviderKeysList';
+import { AccessibilityPanel } from './AccessibilityPanel';
 
 function hexToRgb(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -613,6 +614,21 @@ export function SettingsPanel() {
           </div>
         </div>
       )}
+
+      {/* Accessibility — Item 10 of v3.2.1 polish.  Persisted via
+          electronAPI.accessibility; applied to document.documentElement
+          live so toggles take effect without restart. */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: 'var(--text-primary)',
+          marginBottom: 10,
+        }}>
+          Accessibility
+        </div>
+        <AccessibilityPanel />
+      </div>
 
       {/* Hotkeys */}
       <div style={{ marginBottom: 20 }}>

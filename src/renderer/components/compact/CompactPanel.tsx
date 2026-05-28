@@ -1,7 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import type { CompactStatus, CompactConfig } from '../../../shared/types';
+import type { CommandFamily } from '../commands/command-families';
 
-export function CompactPanel() {
+interface CompactPanelProps {
+  /** CommandFamily of the focused tab. Compact-controller hooks only fire
+   *  inside Claude sessions, so we surface a friendly hint for non-Claude
+   *  active tabs instead of suggesting the toggle affects them. */
+  activeFamily?: CommandFamily;
+}
+
+const COMPACT_APPLICABLE_FAMILIES = new Set<CommandFamily>(['claude', 'claude-chat']);
+
+export function CompactPanel({ activeFamily = 'claude' }: CompactPanelProps = {}) {
   const [status, setStatus] = useState<CompactStatus | null>(null);
   const [config, setConfig] = useState<CompactConfig | null>(null);
   const [toggling, setToggling] = useState(false);
@@ -20,6 +30,12 @@ export function CompactPanel() {
     const interval = setInterval(refresh, 3000);
     return () => clearInterval(interval);
   }, [refresh]);
+
+  // Re-refresh on focused-tab change so the panel doesn't appear stale
+  // when the user switches between Claude tabs and non-Claude tabs.
+  useEffect(() => {
+    refresh();
+  }, [activeFamily, refresh]);
 
   const handleToggle = async () => {
     if (!status) return;
@@ -56,6 +72,28 @@ export function CompactPanel() {
         }} />
         Compact Optimization
       </h3>
+
+      {/* v3.2.1 — focus-aware hint.  The hooks themselves live in
+          ~/.claude/settings.json and apply to all Claude sessions
+          globally, so the toggle is correct as-is; we just point out
+          that the active non-Claude tab won't see any effect. */}
+      {!COMPACT_APPLICABLE_FAMILIES.has(activeFamily) && (
+        <div
+          role="note"
+          style={{
+            marginBottom: 12,
+            padding: '8px 10px',
+            background: 'var(--bg-primary)',
+            border: '1px dashed var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            lineHeight: 1.5,
+          }}
+        >
+          The active tab is a <strong style={{ color: 'var(--text-secondary)' }}>{activeFamily}</strong> session — compact hooks only fire inside Claude CLI tabs.  Switch to (or open) a Claude tab to see their effect.
+        </div>
+      )}
 
       {/* Toggle Card */}
       <div style={{

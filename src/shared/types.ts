@@ -788,7 +788,9 @@ export type HotkeyAction =
   | 'terminal.restart'
   | 'compact.toggle'
   | 'panel.lmm'
-  | 'panel.github';
+  | 'panel.github'
+  | 'models.focus-search'
+  | 'terminal.new-profile';
 
 export interface HotkeyBinding {
   action: HotkeyAction;
@@ -802,6 +804,37 @@ export interface HotkeySettings {
 
 export interface TraySettings {
   minimizeToTrayOnClose: boolean;
+}
+
+// Accessibility — Item 10 of the v3.2.1 polish pass.  Persisted per
+// user under <userData>/accessibility.json.  Renderer applies these to
+// document.documentElement on hydration + on every change so the
+// effect is live without a window reload.
+export type FontScale = '90' | '100' | '115' | '130';
+export type ColorBlindMode = 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia';
+
+export interface AccessibilitySettings {
+  /** WCAG-AAA high-contrast color palette. Overrides the chosen theme. */
+  highContrast: boolean;
+  /** Multiplier applied to --app-font-size CSS variable. */
+  fontScale: FontScale;
+  /** Forces prefers-reduced-motion behavior (disables animations/transitions). */
+  reduceMotion: boolean;
+  /** Thicker, higher-contrast focus outlines on all focusable elements. */
+  largeFocusRing: boolean;
+  /** Bumps min-height on interactive elements to 44px (WCAG-AAA touch target). */
+  largeClickTargets: boolean;
+  /** Switches base font stack to a dyslexia-friendly stack
+   *  (OpenDyslexic if installed, falls back to Comic Sans / Verdana). */
+  dyslexiaFont: boolean;
+  /** Adds aria-live regions + extra aria-labels for assistive tech. */
+  screenReaderMode: boolean;
+  /** Renders a fixed overlay listing the active hotkeys. */
+  keyboardHints: boolean;
+  /** SVG color matrix LUT for color-blind palettes. */
+  colorBlindMode: ColorBlindMode;
+  /** Placeholder for v4.0.0 audio captions — toggle persists, no effect yet. */
+  audioCaptions: boolean;
 }
 
 // Themes — user-defined accent presets persisted to <userData>/themes.json.

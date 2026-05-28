@@ -35,7 +35,22 @@ import { TIER_ORDER, tierMeetsOrExceeds } from './hardware-detection';
 
 const REGISTRY_FILE = 'model-registry.json';
 /** Bump when the seed catalog changes shape or content meaningfully. */
-const SEED_VERSION = 2;
+const SEED_VERSION = 3;
+
+/**
+ * IDs whose display fields (name / description / recommendedFor) we want
+ * to force-refresh from the bundled seed on the next migration step.
+ * Used when we rename an existing entry to give users the new label
+ * without overwriting any genuinely user-customised fields (license URL,
+ * args, etc. are NOT touched).
+ *
+ * Bump SEED_VERSION at the same time so this runs exactly once per user.
+ */
+const FORCE_REFRESH_DISPLAY_IDS = new Set<string>([
+  // v3 — rename "Aider (multi-provider)" → "OpenAI GPT-4o (via Aider)"
+  // so the OpenAI use case is obvious in the API Models tab.
+  'api.aider.multi',
+]);
 
 interface PersistedShape {
   models: ModelDefinition[];
@@ -248,16 +263,36 @@ export class ModelRegistry {
   }
 
   /**
-   * Merge bundled seed updates into an existing user catalog. Only adds
-   * models the user doesn't already have (matched by id). Never overwrites
-   * an existing entry, so user edits to seeded models survive upgrades.
+   * Merge bundled seed updates into an existing user catalog. Adds
+   * models the user doesn't already have (matched by id). For IDs in
+   * FORCE_REFRESH_DISPLAY_IDS, also refresh display-only fields (name,
+   * description, recommendedFor, strengths, weaknesses, badge) from the
+   * seed so renames propagate; other fields (args, command, license,
+   * licenseUrl, etc.) keep whatever the user has on disk.
    */
   private mergeWithSeed(state: ModelRegistryState): ModelRegistryState {
     const haveIds = new Set(state.models.map((m) => m.id));
     const additions = MODEL_CATALOG_SEED.filter((m) => !haveIds.has(m.id));
-    if (additions.length === 0) return state;
+    const needsRefresh = state.models.some((m) => FORCE_REFRESH_DISPLAY_IDS.has(m.id));
+    if (additions.length === 0 && !needsRefresh) return state;
+    const refreshed = !needsRefresh
+      ? state.models
+      : state.models.map((existing) => {
+          if (!FORCE_REFRESH_DISPLAY_IDS.has(existing.id)) return existing;
+          const seedEntry = MODEL_CATALOG_SEED.find((m) => m.id === existing.id);
+          if (!seedEntry) return existing;
+          return {
+            ...existing,
+            name: seedEntry.name,
+            description: seedEntry.description,
+            recommendedFor: seedEntry.recommendedFor,
+            strengths: seedEntry.strengths,
+            weaknesses: seedEntry.weaknesses,
+            badge: seedEntry.badge,
+          };
+        });
     return {
-      models: [...state.models, ...additions.map((m) => ({ ...m }))],
+      models: [...refreshed, ...additions.map((m) => ({ ...m }))],
       updatedAt: new Date().toISOString(),
     };
   }

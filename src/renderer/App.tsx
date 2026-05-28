@@ -65,10 +65,14 @@ export function App() {
     const sp = new URLSearchParams(window.location.search);
     const paneId = sp.get('popout');
     if (!paneId) return null;
-    return { paneId, label: sp.get('label') ?? 'Model' };
+    return {
+      paneId,
+      label: sp.get('label') ?? 'Model',
+      profile: sp.get('profile') ?? undefined,
+    };
   })();
   if (popoutParams) {
-    return <PopoutView paneId={popoutParams.paneId} label={popoutParams.label} />;
+    return <PopoutView paneId={popoutParams.paneId} label={popoutParams.label} profile={popoutParams.profile} />;
   }
 
   const [hydrated, setHydrated] = useState(false);
@@ -154,6 +158,17 @@ export function App() {
         }
       } catch {
         // Themes IPC missing or store malformed — defaults are fine.
+      }
+      // Apply persisted accessibility prefs early so things like font
+      // scale + high contrast are in place before the first paint.
+      try {
+        const a11y = await window.electronAPI.accessibility.get();
+        if (!cancelled) {
+          const { applyAccessibilityPrefs } = await import('./components/settings/accessibility-prefs');
+          applyAccessibilityPrefs(a11y);
+        }
+      } catch {
+        // Accessibility IPC missing — defaults are no-ops, fine to skip.
       }
       if (!cancelled) setHydrated(true);
     })();
@@ -374,6 +389,21 @@ export function App() {
           break;
         case 'panel.github':
           setActivePanel('github');
+          break;
+        case 'models.focus-search':
+          // Open the Models panel (if not already) and ask it to focus
+          // its search input via a custom DOM event. Decoupled from the
+          // panel implementation so we don't have to lift the input ref.
+          setActivePanel('models');
+          // Tick after the panel renders so the input ref is mounted.
+          setTimeout(() => window.dispatchEvent(new Event('models-focus-search')), 0);
+          break;
+        case 'terminal.new-profile':
+          // Open the terminal panel and ask TerminalTabs to open its
+          // profile picker via a custom DOM event.  Same decoupling
+          // pattern as models.focus-search above.
+          setActivePanel('terminal');
+          setTimeout(() => window.dispatchEvent(new Event('terminal-open-profile-picker')), 0);
           break;
         default:
           // unknown action id — ignore
@@ -625,7 +655,7 @@ function RightPanel({
     case 'resources':
       return <ResourcePanel />;
     case 'compact':
-      return <CompactPanel />;
+      return <CompactPanel activeFamily={commandFamily} />;
     case 'cost':
       return <CostPanel />;
     case 'commands':
@@ -635,7 +665,7 @@ function RightPanel({
     case 'github':
       return <GitHubPanel />;
     case 'lmm':
-      return <LMMPanel />;
+      return <LMMPanel activeFamily={commandFamily} />;
     case 'auth':
       return <AuthPanel />;
     case 'sync':

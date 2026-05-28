@@ -68,9 +68,90 @@ html, body, #root {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  font-size: 13px;
+  font-size: calc(13px * var(--app-font-scale, 1));
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ----------------------------------------------------------------------
+ * Accessibility (Item 10 of v3.2.1 polish).  Set by
+ * applyAccessibilityPrefs() in components/settings/accessibility-prefs.ts
+ * on hydration + every change.  Keyed off data-attributes on <html> so
+ * the entire app reacts without props plumbing.
+ * -------------------------------------------------------------------- */
+
+/* WCAG-AAA high-contrast palette override. */
+:root[data-high-contrast="true"] {
+  --bg-primary: #000000;
+  --bg-secondary: #0d0d0d;
+  --bg-tertiary: #1a1a1a;
+  --bg-elevated: #1f1f1f;
+  --bg-hover: rgba(255, 255, 255, 0.12);
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-muted: #a0a0a0;
+  --border: rgba(255, 255, 255, 0.35);
+  --border-active: #ffffff;
+  --accent: #bb86fc;
+  --accent-light: #d0a9ff;
+}
+
+/* Force reduced motion regardless of OS preference. */
+:root[data-reduce-motion="true"] *,
+:root[data-reduce-motion="true"] *::before,
+:root[data-reduce-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Thicker, higher-contrast focus outline. */
+:root[data-large-focus-ring="true"] :focus-visible {
+  outline: 3px solid #ffd700 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.35) !important;
+}
+
+/* Larger touch / click targets — WCAG AAA 44px. */
+:root[data-large-click-targets="true"] button,
+:root[data-large-click-targets="true"] a,
+:root[data-large-click-targets="true"] [role="button"],
+:root[data-large-click-targets="true"] input:not([type="checkbox"]):not([type="radio"]),
+:root[data-large-click-targets="true"] select,
+:root[data-large-click-targets="true"] textarea {
+  min-height: 44px;
+}
+
+/* Dyslexia-friendly font stack (uses OpenDyslexic if the user installed
+   it, otherwise falls back to Comic Sans / Verdana — proven readability
+   wins per the British Dyslexia Association style guide). */
+:root[data-dyslexia-font="true"] body,
+:root[data-dyslexia-font="true"] #root {
+  font-family: "OpenDyslexic", "Comic Sans MS", Verdana, sans-serif !important;
+  letter-spacing: 0.02em;
+}
+
+/* Visible "keyboard hints" overlay — Settings page surfaces the list,
+   this rule just gives the overlay container styling.  AccessibilityPanel
+   renders <KeyboardHintsOverlay /> when this attribute is "true". */
+:root[data-keyboard-hints="true"] .keyboard-hints-overlay {
+  display: block;
+}
+:root:not([data-keyboard-hints="true"]) .keyboard-hints-overlay {
+  display: none;
+}
+
+/* Color-blind palettes via SVG matrix filters.  The filter elements
+   live in AccessibilityPanel and apply at the root. */
+:root[data-color-blind="protanopia"] {
+  filter: url(#a11y-protanopia);
+}
+:root[data-color-blind="deuteranopia"] {
+  filter: url(#a11y-deuteranopia);
+}
+:root[data-color-blind="tritanopia"] {
+  filter: url(#a11y-tritanopia);
 }
 
 /* Scrollbar */

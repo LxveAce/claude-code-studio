@@ -82,24 +82,49 @@ export const MODEL_CATALOG_SEED: ModelDefinition[] = [
 
   {
     id: 'api.aider.multi',
-    name: 'Aider (multi-provider)',
-    description: 'Open-source pair-programming CLI; picks the API based on the model flag.',
+    name: 'OpenAI GPT-4o (via Aider)',
+    description: "OpenAI GPT-4o through Aider's repo-aware editing flow. Uses your OPENAI_API_KEY; falls through to Aider for diff-by-diff review.",
     category: 'api',
     provider: 'OpenAI',
     command: 'aider',
     args: ['--model', 'gpt-4o'],
     roles: ['polyglot-code', 'agentic', 'backend', 'frontend'],
     badge: 'OSS',
-    recommendedFor: 'Use when you want repo-aware code edits via OpenAI / Anthropic / Gemini with diff review at every step.',
+    recommendedFor: 'Pick when you want OpenAI as your primary, with Aider providing repo-awareness + per-edit diff review.',
     strengths: [
-      'Repo-aware editing with git integration',
-      'Works against OpenAI, Anthropic, Gemini, OpenRouter via one CLI',
+      'OpenAI GPT-4o quality with repo-wide edits',
+      'Diff-by-diff review keeps you in the loop',
     ],
     weaknesses: [
       'Requires `pip install aider-chat`; not bundled',
-      'Auth pattern differs from Claude — env var per provider',
+      'Needs OPENAI_API_KEY in env or saved here',
     ],
-    license: 'Apache 2.0',
+    license: 'Apache 2.0 (Aider) + OpenAI ToS',
+    licenseUrl: 'https://github.com/Aider-AI/aider',
+  },
+
+  {
+    // Smaller / cheaper OpenAI tier via the same Aider CLI. Same auth as
+    // the GPT-4o entry above — only the `--model` flag differs.
+    id: 'api.openai.gpt-4o-mini',
+    name: 'OpenAI GPT-4o-mini (via Aider)',
+    description: "OpenAI's smaller, cheaper tier through Aider. Same OPENAI_API_KEY as the GPT-4o entry; routes to gpt-4o-mini for cost-sensitive runs.",
+    category: 'api',
+    provider: 'OpenAI',
+    command: 'aider',
+    args: ['--model', 'gpt-4o-mini'],
+    roles: ['polyglot-code', 'general-chat'],
+    badge: 'Budget',
+    recommendedFor: 'Use for cheap iterative code edits, scratch work, and bulk transforms where GPT-4o is overkill.',
+    strengths: [
+      '5-10× cheaper than GPT-4o for the simple tasks it handles',
+      'Same diff-review workflow as Aider-based entries',
+    ],
+    weaknesses: [
+      'Capability drop vs GPT-4o; not for tricky multi-file refactors',
+      'Still needs Aider installed',
+    ],
+    license: 'Apache 2.0 (Aider) + OpenAI ToS',
     licenseUrl: 'https://github.com/Aider-AI/aider',
   },
 
